@@ -39,7 +39,7 @@ void FeatureTracker::setMask()
         mask = fisheye_mask.clone();
     else
         mask = cv::Mat(ROW, COL, CV_8UC1, cv::Scalar(255));
-    
+
 
     // prefer to keep features that are tracked for long time
     vector<pair<int, pair<cv::Point2f, int>>> cnt_pts_id;
@@ -78,12 +78,12 @@ void FeatureTracker::addPoints()
     }
 }
 
-void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time)
+void FeatureTracker::readImage(const cv::Mat &_img, const cv::Mat &_depth, double _cur_time)
 {
     cv::Mat img;
     TicToc t_r;
     cur_time = _cur_time;
-
+    // too dark or too bright: histogram
     if (EQUALIZE)
     {
         cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(3.0, cv::Size(8, 8));
@@ -96,11 +96,14 @@ void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time)
 
     if (forw_img.empty())
     {
+        //curr_img<--->forw_img
         prev_img = cur_img = forw_img = img;
+        prev_depth = cur_depth = forw_depth = _depth;
     }
     else
     {
         forw_img = img;
+        forw_depth = _depth;
     }
 
     forw_pts.clear();
@@ -110,8 +113,9 @@ void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time)
         TicToc t_o;
         vector<uchar> status;
         vector<float> err;
+        //光流跟踪点
         cv::calcOpticalFlowPyrLK(cur_img, forw_img, cur_pts, forw_pts, status, err, cv::Size(21, 21), 3);
-
+        //剔除图像边缘的点
         for (int i = 0; i < int(forw_pts.size()); i++)
             if (status[i] && !inBorder(forw_pts[i]))
                 status[i] = 0;
@@ -121,6 +125,7 @@ void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time)
         reduceVector(ids, status);
         reduceVector(cur_un_pts, status);
         reduceVector(track_cnt, status);
+
         ROS_DEBUG("temporal optical flow costs: %fms", t_o.toc());
     }
 
@@ -129,9 +134,11 @@ void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time)
 
     if (PUB_THIS_FRAME)
     {
+        //对prev_pts和forw_pts做ransac剔除outlier.
         rejectWithF();
         ROS_DEBUG("set mask begins");
         TicToc t_m;
+        //有点类似non-max suppression
         setMask();
         ROS_DEBUG("set mask costs %fms", t_m.toc());
 
@@ -146,6 +153,8 @@ void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time)
                 cout << "mask type wrong " << endl;
             if (mask.size() != forw_img.size())
                 cout << "wrong size " << endl;
+            //提取新的角点n_pts, 使数量达到MAX_CNT, 通过addPoints()函数push到forw_pts中, id初始化-1,track_cnt初始化为1.
+            //初始cur_pts.size = 0, 所有pts来自Shi-Tomasi角点检测(改进Harris)
             cv::goodFeaturesToTrack(forw_img, n_pts, MAX_CNT - forw_pts.size(), 0.01, MIN_DIST, mask);
         }
         else
@@ -158,9 +167,11 @@ void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time)
         ROS_DEBUG("selectFeature costs: %fms", t_a.toc());
     }
     prev_img = cur_img;
+    prev_depth = cur_depth;
     prev_pts = cur_pts;
     prev_un_pts = cur_un_pts;
     cur_img = forw_img;
+    cur_depth = forw_depth;
     cur_pts = forw_pts;
     undistortedPoints();
     prev_time = cur_time;
@@ -264,7 +275,10 @@ void FeatureTracker::undistortedPoints()
     {
         Eigen::Vector2d a(cur_pts[i].x, cur_pts[i].y);
         Eigen::Vector3d b;
+        //https://github.com/HKUST-Aerial-Robotics/VINS-Mono/blob/0d280936e441ebb782bf8855d86e13999a22da63/camera_model/src/camera_models/PinholeCamera.cc
+        //brief Lifts a point from the image plane to its projective ray
         m_camera->liftProjective(a, b);
+        // 特征点在相机坐标系的归一化坐标
         cur_un_pts.push_back(cv::Point2f(b.x() / b.z(), b.y() / b.z()));
         cur_un_pts_map.insert(make_pair(ids[i], cv::Point2f(b.x() / b.z(), b.y() / b.z())));
         //printf("cur pts id %d %f %f", ids[i], cur_un_pts[i].x, cur_un_pts[i].y);

@@ -30,19 +30,25 @@ alt="Mobile platform" width="240" height="180" border="10" /></a>
  MAV application;               Mobile implementation (Video link for mainland China friends: [Video1](http://www.bilibili.com/video/av10813254/) [Video2](http://www.bilibili.com/video/av10813205/) [Video3](http://www.bilibili.com/video/av10813089/) [Video4](http://www.bilibili.com/video/av10813325/) [Video5](http://www.bilibili.com/video/av10813030/))
 
 **Related Papers**
-* **VINS-Mono: A Robust and Versatile Monocular Visual-Inertial State Estimator**, Tong Qin, Peiliang Li, Zhenfei Yang, Shaojie Shen, IEEE Transactions on Robotics[pdf](https://ieeexplore.ieee.org/document/8421746/?arnumber=8421746&source=authoralert) 
-
+* **VINS-Mono: A Robust and Versatile Monocular Visual-Inertial State Estimator**, Tong Qin, Peiliang Li, Zhenfei Yang, Shaojie Shen [arXiv:1708.03852](https://arxiv.org/abs/1708.03852v1) 
+* **Autonomous Aerial Navigation Using Monocular Visual-Inertial Fusion**, Yi Lin, Fei Gao, Tong Qin, Wenliang Gao, Tianbo Liu, William Wu, Zhenfei Yang, Shaojie Shen, J Field Robotics. 2017;00:1–29. [https://doi.org/10.1002/rob.21732](https://doi.org/10.1002/rob.21732)  
 ```
 @article{qin2017vins,
   title={VINS-Mono: A Robust and Versatile Monocular Visual-Inertial State Estimator},
   author={Qin, Tong and Li, Peiliang and Shen, Shaojie},
-  journal={IEEE Transactions on Robotics}, 
-  year={2018},
-  volume={34}, 
-  number={4}, 
-  pages={1004-1020}}
+  journal={arXiv preprint arXiv:1708.03852},
+  year={2017}
+}
 ```
-
+```
+@article{Lin17,
+  Author = {Y. Lin and F. Gao and T. Qin and W. Gao and T. Liu and W. Wu and Z. Yang and S. Shen},
+  Journal = jfr,
+  Title = {Autonomous Aerial Navigation Using Monocular Visual-Inertial Fusion},  
+  Volume = {00},
+  Pages = {1-29},
+  Year = {2017}} 
+```
 *If you use VINS-Mono for your academic research, please cite at least one of our related papers.*
 
 ## 1. Prerequisites

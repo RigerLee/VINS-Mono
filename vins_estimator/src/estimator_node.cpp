@@ -104,17 +104,18 @@ getMeasurements()
     {
         if (imu_buf.empty() || feature_buf.empty())
             return measurements;
-
+        //IMU最后一个数据的时间要大于图像特征最开始数据的时间
         if (!(imu_buf.back()->header.stamp.toSec() > feature_buf.front()->header.stamp.toSec() + estimator.td))
         {
             //ROS_WARN("wait for imu, only should happen at the beginning");
             sum_of_wait++;
             return measurements;
         }
-
+        //IMU最开始数据的时间要小于图像特征最开始数据的时间
         if (!(imu_buf.front()->header.stamp.toSec() < feature_buf.front()->header.stamp.toSec() + estimator.td))
         {
             ROS_WARN("throw img, only should happen at the beginning");
+            //queue   pop = pop front
             feature_buf.pop();
             continue;
         }
@@ -122,11 +123,13 @@ getMeasurements()
         feature_buf.pop();
 
         std::vector<sensor_msgs::ImuConstPtr> IMUs;
+        //把开始时间小于图像特征的imu数据都放到IMUs里
         while (imu_buf.front()->header.stamp.toSec() < img_msg->header.stamp.toSec() + estimator.td)
         {
             IMUs.emplace_back(imu_buf.front());
             imu_buf.pop();
         }
+        //把第一张开始时间大于图像特征的imu数据放到IMUs里
         IMUs.emplace_back(imu_buf.front());
         if (IMUs.empty())
             ROS_WARN("no imu between two image");
@@ -153,6 +156,7 @@ void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
 
     {
         std::lock_guard<std::mutex> lg(m_state);
+        //predict imu (no residual error)
         predict(imu_msg);
         std_msgs::Header header = imu_msg->header;
         header.frame_id = "world";
@@ -211,23 +215,29 @@ void process()
     while (true)
     {
         std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>, sensor_msgs::PointCloudConstPtr>> measurements;
+        //locked at the begining
         std::unique_lock<std::mutex> lk(m_buf);
+        //等待imu_buf和feature_buf接收数据完成就会被唤醒
+        //在提取的过程中回调函数是无法接收数据的
         con.wait(lk, [&]
                  {
+            //vector measurements 包含了一组IMU数据和一帧图像数据(pointcloud)的组合的容器
             return (measurements = getMeasurements()).size() != 0;
                  });
         lk.unlock();
         m_estimator.lock();
+        //可能有多帧图像？
         for (auto &measurement : measurements)
         {
             auto img_msg = measurement.second;
             double dx = 0, dy = 0, dz = 0, rx = 0, ry = 0, rz = 0;
+            //针对每一张图像对应的imu
             for (auto &imu_msg : measurement.first)
             {
                 double t = imu_msg->header.stamp.toSec();
                 double img_t = img_msg->header.stamp.toSec() + estimator.td;
                 if (t <= img_t)
-                { 
+                {
                     if (current_time < 0)
                         current_time = t;
                     double dt = t - current_time;
@@ -294,6 +304,7 @@ void process()
 
             TicToc t_s;
             map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> image;
+            //对每一个特征点
             for (unsigned int i = 0; i < img_msg->points.size(); i++)
             {
                 int v = img_msg->channels[0].values[i] + 0.5;
@@ -317,7 +328,7 @@ void process()
             printStatistics(estimator, whole_t);
             std_msgs::Header header = img_msg->header;
             header.frame_id = "world";
-
+            // utility/visualization.cpp
             pubOdometry(estimator, header);
             pubKeyPoses(estimator, header);
             pubCameraPose(estimator, header);
@@ -355,6 +366,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub_imu = n.subscribe(IMU_TOPIC, 2000, imu_callback, ros::TransportHints().tcpNoDelay());
     ros::Subscriber sub_image = n.subscribe("/feature_tracker/feature", 2000, feature_callback);
     ros::Subscriber sub_restart = n.subscribe("/feature_tracker/restart", 2000, restart_callback);
+    //topic from pose_graph, notify if there's relocalization
     ros::Subscriber sub_relo_points = n.subscribe("/pose_graph/match_points", 2000, relocalization_callback);
 
     std::thread measurement_process{process};

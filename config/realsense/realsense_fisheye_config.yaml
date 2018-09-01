@@ -1,8 +1,8 @@
 %YAML:1.0
 
 #common parameters
-imu_topic: "/camera/imu/data_raw"
-image_topic: "/camera/fisheye/image_raw"
+imu_topic: "/zr300_node/imu"
+image_topic: "/zr300_node/fisheye/image_raw"
 output_path: "/home/tony-ws1/output/"
 
 #camera calibration 
