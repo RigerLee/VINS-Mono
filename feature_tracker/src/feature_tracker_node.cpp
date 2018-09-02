@@ -81,7 +81,7 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
 
     //depth has encoding TYPE_16UC1
     cv_bridge::CvImageConstPtr depth_ptr;
-    if (color_msg->encoding == "16UC1")
+    // debug use     std::cout<<depth_msg->encoding<<std::endl;
     {
         sensor_msgs::Image img;
         img.header = depth_msg->header;
@@ -90,11 +90,9 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
         img.is_bigendian = depth_msg->is_bigendian;
         img.step = depth_msg->step;
         img.data = depth_msg->data;
-        img.encoding = "mono16";
+        img.encoding = sensor_msgs::image_encodings::MONO16;
         depth_ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO16);
     }
-    else
-        depth_ptr = cv_bridge::toCvCopy(depth_msg, sensor_msgs::image_encodings::MONO16);
 
 
     cv::Mat show_img = ptr->image;
@@ -105,7 +103,10 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
     {
         ROS_DEBUG("processing camera %d", i);
         if (i != 1 || !STEREO_TRACK)
+        {
+
             trackerData[i].readImage(ptr->image.rowRange(ROW * i, ROW * (i + 1)), depth_ptr->image.rowRange(ROW * i, ROW * (i + 1)), color_msg->header.stamp.toSec());
+        }
         else
         {
             if (EQUALIZE)
@@ -142,6 +143,7 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
     // 这里修改的话，可以多发布一个对应坐标的深度信息，也可以考虑发布整个depth图像
     if (PUB_THIS_FRAME)
     {
+        //vector<int> test;
         cv::Mat show_depth = depth_ptr->image;
         pub_count++;
         //http://docs.ros.org/api/sensor_msgs/html/msg/PointCloud.html
@@ -174,18 +176,28 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
                     p.x = un_pts[j].x;
                     p.y = un_pts[j].y;
                     p.z = 1;
-
+                    // push normalized point to pointcloud
                     feature_points->points.push_back(p);
+                    // push other info
                     id_of_point.values.push_back(p_id * NUM_OF_CAM + i);
                     u_of_point.values.push_back(cur_pts[j].x);
                     v_of_point.values.push_back(cur_pts[j].y);
                     velocity_x_of_point.values.push_back(pts_velocity[j].x);
                     velocity_y_of_point.values.push_back(pts_velocity[j].y);
                     //nearest neighbor....fastest  may be changed
-                    depth_of_point.values.push_back((int)show_depth.at<uchar>(round(cur_pts[j].x),round(cur_pts[j].y)));
+                    // show_depth: 480*640   y:[0,480]   x:[0,640]
+                    depth_of_point.values.push_back((int)show_depth.at<unsigned short>(round(cur_pts[j].y),round(cur_pts[j].x)));
+                    //debug use: print depth pixels
+                    //test.push_back((int)show_depth.at<unsigned short>(round(cur_pts[j].y),round(cur_pts[j].x)));
                 }
             }
         }
+        //debug use: print depth pixels
+        //for (int iii = test.size() - 1; iii >= 0; iii--)
+        //{
+        //    std::cout << test[iii] << " ";
+        //}
+        //std::cout << std::endl;
         feature_points->channels.push_back(id_of_point);
         feature_points->channels.push_back(u_of_point);
         feature_points->channels.push_back(v_of_point);

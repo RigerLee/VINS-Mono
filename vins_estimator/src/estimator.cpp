@@ -97,7 +97,7 @@ void Estimator::processIMU(double dt, const Vector3d &linear_acceleration, const
         linear_acceleration_buf[frame_count].push_back(linear_acceleration);
         angular_velocity_buf[frame_count].push_back(angular_velocity);
 
-        int j = frame_count;         
+        int j = frame_count;
         Vector3d un_acc_0 = Rs[j] * (acc_0 - Bas[j]) - g;
         Vector3d un_gyr = 0.5 * (gyr_0 + angular_velocity) - Bgs[j];
         Rs[j] *= Utility::deltaQ(un_gyr * dt).toRotationMatrix();
@@ -114,6 +114,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
 {
     ROS_DEBUG("new image coming ------------------------------------------");
     ROS_DEBUG("Adding feature points %lu", image.size());
+    //判断视差决定是否marginalization（不会更改点的顺序）
     if (f_manager.addFeatureCheckParallax(frame_count, image, td))
         marginalization_flag = MARGIN_OLD;
     else
@@ -124,12 +125,14 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     ROS_DEBUG("Solving %d", frame_count);
     ROS_DEBUG("number of feature: %d", f_manager.getFeatureCount());
     Headers[frame_count] = header;
-
+    //注意image可能在下面几行被改过？
     ImageFrame imageframe(image, header.stamp.toSec());
+    //tmp_pre_integration is determined in processIMU
     imageframe.pre_integration = tmp_pre_integration;
     all_image_frame.insert(make_pair(header.stamp.toSec(), imageframe));
     tmp_pre_integration = new IntegrationBase{acc_0, gyr_0, Bas[frame_count], Bgs[frame_count]};
 
+    //not used
     if(ESTIMATE_EXTRINSIC == 2)
     {
         ROS_INFO("calibrating extrinsic param, rotation movement is needed");
@@ -169,7 +172,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
                 last_P = Ps[WINDOW_SIZE];
                 last_R0 = Rs[0];
                 last_P0 = Ps[0];
-                
+
             }
             else
                 slideWindow();
@@ -257,7 +260,7 @@ bool Estimator::initialStructure()
             tmp_feature.observation.push_back(make_pair(imu_j, Eigen::Vector2d{pts_j.x(), pts_j.y()}));
         }
         sfm_f.push_back(tmp_feature);
-    } 
+    }
     Matrix3d relative_R;
     Vector3d relative_T;
     int l;
@@ -322,7 +325,7 @@ bool Estimator::initialStructure()
                 }
             }
         }
-        cv::Mat K = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);     
+        cv::Mat K = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);
         if(pts_3_vector.size() < 6)
         {
             cout << "pts_3_vector size " << pts_3_vector.size() << endl;
@@ -427,7 +430,7 @@ bool Estimator::visualInitialAlign()
         Vs[i] = rot_diff * Vs[i];
     }
     ROS_DEBUG_STREAM("g0     " << g.transpose());
-    ROS_DEBUG_STREAM("my R0  " << Utility::R2ypr(Rs[0]).transpose()); 
+    ROS_DEBUG_STREAM("my R0  " << Utility::R2ypr(Rs[0]).transpose());
 
     return true;
 }
@@ -551,7 +554,7 @@ void Estimator::double2vector()
     {
 
         Rs[i] = rot_diff * Quaterniond(para_Pose[i][6], para_Pose[i][3], para_Pose[i][4], para_Pose[i][5]).normalized().toRotationMatrix();
-        
+
         Ps[i] = rot_diff * Vector3d(para_Pose[i][0] - para_Pose[0][0],
                                 para_Pose[i][1] - para_Pose[0][1],
                                 para_Pose[i][2] - para_Pose[0][2]) + origin_P0;
@@ -589,7 +592,7 @@ void Estimator::double2vector()
 
     // relative info between two loop frame
     if(relocalization_info)
-    { 
+    {
         Matrix3d relo_r;
         Vector3d relo_t;
         relo_r = rot_diff * Quaterniond(relo_Pose[6], relo_Pose[3], relo_Pose[4], relo_Pose[5]).normalized().toRotationMatrix();
@@ -599,14 +602,14 @@ void Estimator::double2vector()
         double drift_correct_yaw;
         drift_correct_yaw = Utility::R2ypr(prev_relo_r).x() - Utility::R2ypr(relo_r).x();
         drift_correct_r = Utility::ypr2R(Vector3d(drift_correct_yaw, 0, 0));
-        drift_correct_t = prev_relo_t - drift_correct_r * relo_t;   
+        drift_correct_t = prev_relo_t - drift_correct_r * relo_t;
         relo_relative_t = relo_r.transpose() * (Ps[relo_frame_local_index] - relo_t);
         relo_relative_q = relo_r.transpose() * Rs[relo_frame_local_index];
         relo_relative_yaw = Utility::normalizeAngle(Utility::R2ypr(Rs[relo_frame_local_index]).x() - Utility::R2ypr(relo_r).x());
         //cout << "vins relo " << endl;
         //cout << "vins relative_t " << relo_relative_t.transpose() << endl;
         //cout << "vins relative_yaw " <<relo_relative_yaw << endl;
-        relocalization_info = 0;    
+        relocalization_info = 0;
 
     }
 }
@@ -644,7 +647,7 @@ bool Estimator::failureDetection()
     if (abs(tmp_P.z() - last_P.z()) > 1)
     {
         ROS_INFO(" big z translation");
-        return true; 
+        return true;
     }
     Matrix3d tmp_R = Rs[WINDOW_SIZE];
     Matrix3d delta_R = tmp_R.transpose() * last_R;
@@ -716,11 +719,11 @@ void Estimator::optimization()
         it_per_id.used_num = it_per_id.feature_per_frame.size();
         if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
             continue;
- 
+
         ++feature_index;
 
         int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
-        
+
         Vector3d pts_i = it_per_id.feature_per_frame[0].point;
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
@@ -774,7 +777,7 @@ void Estimator::optimization()
             ++feature_index;
             int start = it_per_id.start_frame;
             if(start <= relo_frame_local_index)
-            {   
+            {
                 while((int)match_points[retrive_feature_index].z() < it_per_id.feature_id)
                 {
                     retrive_feature_index++;
@@ -783,11 +786,11 @@ void Estimator::optimization()
                 {
                     Vector3d pts_j = Vector3d(match_points[retrive_feature_index].x(), match_points[retrive_feature_index].y(), 1.0);
                     Vector3d pts_i = it_per_id.feature_per_frame[0].point;
-                    
+
                     ProjectionFactor *f = new ProjectionFactor(pts_i, pts_j);
                     problem.AddResidualBlock(f, loss_function, para_Pose[start], relo_Pose, para_Ex_Pose[0], para_Feature[feature_index]);
                     retrive_feature_index++;
-                }     
+                }
             }
         }
 
@@ -898,7 +901,7 @@ void Estimator::optimization()
         TicToc t_pre_margin;
         marginalization_info->preMarginalize();
         ROS_DEBUG("pre marginalization %f ms", t_pre_margin.toc());
-        
+
         TicToc t_margin;
         marginalization_info->marginalize();
         ROS_DEBUG("marginalization %f ms", t_margin.toc());
@@ -921,7 +924,7 @@ void Estimator::optimization()
             delete last_marginalization_info;
         last_marginalization_info = marginalization_info;
         last_marginalization_parameter_blocks = parameter_blocks;
-        
+
     }
     else
     {
@@ -958,7 +961,7 @@ void Estimator::optimization()
             ROS_DEBUG("begin marginalization");
             marginalization_info->marginalize();
             ROS_DEBUG("end marginalization, %f ms", t_margin.toc());
-            
+
             std::unordered_map<long, double *> addr_shift;
             for (int i = 0; i <= WINDOW_SIZE; i++)
             {
@@ -981,17 +984,17 @@ void Estimator::optimization()
             {
                 addr_shift[reinterpret_cast<long>(para_Td[0])] = para_Td[0];
             }
-            
+
             vector<double *> parameter_blocks = marginalization_info->getParameterBlocks(addr_shift);
             if (last_marginalization_info)
                 delete last_marginalization_info;
             last_marginalization_info = marginalization_info;
             last_marginalization_parameter_blocks = parameter_blocks;
-            
+
         }
     }
     ROS_DEBUG("whole marginalization costs: %f", t_whole_marginalization.toc());
-    
+
     ROS_DEBUG("whole time for ceres: %f", t_whole.toc());
 }
 
@@ -1127,4 +1130,3 @@ void Estimator::setReloFrame(double _frame_stamp, int _frame_index, vector<Vecto
         }
     }
 }
-
