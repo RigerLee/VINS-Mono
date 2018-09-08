@@ -110,11 +110,14 @@ void Estimator::processIMU(double dt, const Vector3d &linear_acceleration, const
     gyr_0 = angular_velocity;
 }
 
-void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header)
+void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 8, 1>>>> &image, const std_msgs::Header &header)
 {
     ROS_DEBUG("new image coming ------------------------------------------");
     ROS_DEBUG("Adding feature points %lu", image.size());
     //判断视差决定是否marginalization（不会更改点的顺序）
+    // feature_per_frame: 图像上的一个点
+    // feature_per_id: 某个id图像上的所有点的集合
+    // feature: 所有id的集合
     if (f_manager.addFeatureCheckParallax(frame_count, image, td))
         marginalization_flag = MARGIN_OLD;
     else
@@ -125,7 +128,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     ROS_DEBUG("Solving %d", frame_count);
     ROS_DEBUG("number of feature: %d", f_manager.getFeatureCount());
     Headers[frame_count] = header;
-    //注意image可能在下面几行被改过？
+    //image包装成ImageFrame存入map all_image_frame
     ImageFrame imageframe(image, header.stamp.toSec());
     //tmp_pre_integration is determined in processIMU
     imageframe.pre_integration = tmp_pre_integration;
@@ -161,6 +164,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
                result = initialStructure();
                initial_timestamp = header.stamp.toSec();
             }
+            //if init sfm success
             if(result)
             {
                 solver_flag = NON_LINEAR;
@@ -183,6 +187,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     else
     {
         TicToc t_solve;
+        //do optimization if frame_count >= WINDOW_SIZE
         solveOdometry();
         ROS_DEBUG("solver costs: %fms", t_solve.toc());
 
@@ -247,12 +252,14 @@ bool Estimator::initialStructure()
     Vector3d T[frame_count + 1];
     map<int, Vector3d> sfm_tracked_points;
     vector<SFMFeature> sfm_f;
+    //所有feature进行sfm
     for (auto &it_per_id : f_manager.feature)
     {
         int imu_j = it_per_id.start_frame - 1;
         SFMFeature tmp_feature;
         tmp_feature.state = false;
         tmp_feature.id = it_per_id.feature_id;
+        //一张图片的特征点都存到temp_feature,作为一个sfm feature
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
             imu_j++;
@@ -264,6 +271,7 @@ bool Estimator::initialStructure()
     Matrix3d relative_R;
     Vector3d relative_T;
     int l;
+    // find previous frame which contians enough correspondance and parallex with newest frame
     if (!relativePose(relative_R, relative_T, l))
     {
         ROS_INFO("Not enough features or parallax; Move device around");
@@ -308,6 +316,7 @@ bool Estimator::initialStructure()
         frame_it->second.is_key_frame = false;
         vector<cv::Point3f> pts_3_vector;
         vector<cv::Point2f> pts_2_vector;
+        //points: map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>>
         for (auto &id_pts : frame_it->second.points)
         {
             int feature_id = id_pts.first;
@@ -347,6 +356,7 @@ bool Estimator::initialStructure()
         frame_it->second.R = R_pnp * RIC[0].transpose();
         frame_it->second.T = T_pnp;
     }
+    // Rs Ps ric init
     if (visualInitialAlign())
         return true;
     else
@@ -1046,6 +1056,7 @@ void Estimator::slideWindow()
                 all_image_frame.erase(all_image_frame.begin(), it_0);
 
             }
+            //删除最早的一帧
             slideWindowOld();
         }
     }
@@ -1079,7 +1090,7 @@ void Estimator::slideWindow()
             dt_buf[WINDOW_SIZE].clear();
             linear_acceleration_buf[WINDOW_SIZE].clear();
             angular_velocity_buf[WINDOW_SIZE].clear();
-
+            //删除最新的一帧
             slideWindowNew();
         }
     }

@@ -126,7 +126,7 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
         trackerData[i].showUndistortion("undistrotion_" + std::to_string(i));
 #endif
     }
-
+    // update all id in ids[]
     for (unsigned int i = 0;; i++)
     {
         bool completed = false;

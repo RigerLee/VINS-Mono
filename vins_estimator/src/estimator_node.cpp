@@ -142,7 +142,7 @@ void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
 {
     if (imu_msg->header.stamp.toSec() <= last_imu_t)
     {
-        ROS_WARN("imu message in disorder!");
+        ROS_WARN("imu message in disorder! %f",imu_msg->header.stamp.toSec() );
         return;
     }
     last_imu_t = imu_msg->header.stamp.toSec();
@@ -303,8 +303,9 @@ void process()
             ROS_DEBUG("processing vision data with stamp %f \n", img_msg->header.stamp.toSec());
 
             TicToc t_s;
-            map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> image;
+            map<int, vector<pair<int, Eigen::Matrix<double, 8, 1>>>> image;
             //对每一个特征点
+            //add debug print here?, test if feature_id has changed
             for (unsigned int i = 0; i < img_msg->points.size(); i++)
             {
                 int v = img_msg->channels[0].values[i] + 0.5;
@@ -317,14 +318,19 @@ void process()
                 double p_v = img_msg->channels[2].values[i];
                 double velocity_x = img_msg->channels[3].values[i];
                 double velocity_y = img_msg->channels[4].values[i];
+                double depth = img_msg->channels[5].values[i];
                 ROS_ASSERT(z == 1);
-                Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
-                xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
-                image[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
+                Eigen::Matrix<double, 8, 1> xyz_uv_velocity_depth;
+                xyz_uv_velocity_depth << x, y, z, p_u, p_v, velocity_x, velocity_y, depth;
+                image[feature_id].emplace_back(camera_id,  xyz_uv_velocity_depth);
             }
+            //准备输出在processImage里完成
+            //后天任务：看pub函数
+            //思路：
             estimator.processImage(image, img_msg->header);
 
             double whole_t = t_s.toc();
+            //Write out EXTRINSIC and print other info
             printStatistics(estimator, whole_t);
             std_msgs::Header header = img_msg->header;
             header.frame_id = "world";
