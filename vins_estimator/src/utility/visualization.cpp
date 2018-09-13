@@ -19,6 +19,7 @@ CameraPoseVisualization cameraposevisual(0, 1, 0, 1);
 CameraPoseVisualization keyframebasevisual(0.0, 0.0, 1.0, 1.0);
 static double sum_of_path = 0;
 static Vector3d last_path(0.0, 0.0, 0.0);
+vector<int> prev_pcd_id;
 
 void registerPub(ros::NodeHandle &n)
 {
@@ -248,7 +249,7 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
     point_cloud.header = header;
     loop_point_cloud.header = header;
 
-
+    vector<int> pcd_id_temp;
     for (auto &it_per_id : estimator.f_manager.feature)
     {
         int used_num;
@@ -257,26 +258,30 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
             continue;
         if (it_per_id.start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id.solve_flag != 1)
             continue;
-        int imu_i = it_per_id.start_frame;
-        Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth;
-        //depth is in mm.
-        double depth = it_per_id.feature_per_frame[0].depth;
-        if (depth != 0)
+        pcd_id_temp.push_back(it_per_id.feature_id);
+        vector<int>::iterator result = find(prev_pcd_id.begin(), prev_pcd_id.end(), it_per_id.feature_id);
+        if (result == prev_pcd_id.end())
         {
-            // multiply pts by a scale factor
-            pts_i = depth / 1000 / pts_i(2) * pts_i;
-            Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[imu_i];
-            // debug
-            //ROS_ERROR("x: %f   y: %f   z: %f   depth: %f", pts_i(0),pts_i(1),pts_i(2),depth);
-            geometry_msgs::Point32 p;
-            p.x = w_pts_i(0);
-            p.y = w_pts_i(1);
-            p.z = w_pts_i(2);
+          int imu_i = it_per_id.start_frame;
+          double depth = it_per_id.feature_per_frame[0].depth;
+          if (depth != 0)
+          {
+              Vector3d pts_i = it_per_id.feature_per_frame[0].point * depth / 1000;
+              Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[imu_i];
+              // debug
+              //ROS_ERROR("x: %f   y: %f   z: %f   depth: %f", pts_i(0),pts_i(1),pts_i(2),depth);
+              geometry_msgs::Point32 p;
+              p.x = w_pts_i(0);
+              p.y = w_pts_i(1);
+              p.z = w_pts_i(2);
 
-            point_cloud.points.push_back(p);
+              point_cloud.points.push_back(p);
+          }
         }
 
     }
+    prev_pcd_id.clear();
+    prev_pcd_id = pcd_id_temp;
     //"point_cloud"
     pub_point_cloud.publish(point_cloud);
 
@@ -298,7 +303,7 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
             && it_per_id.solve_flag == 1 )
         {
             int imu_i = it_per_id.start_frame;
-            Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth;
+            Vector3d pts_i = it_per_id.feature_per_frame[0].depth == 0 ? it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth : it_per_id.feature_per_frame[0].point * it_per_id.feature_per_frame[0].depth;
             //std::cout<<"pts_i(0):"<<pts_i(0)<<"    pts_i(1):"<<pts_i(1)<<"    pts_i(2):"<<pts_i(2)<<std::endl;
             Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[imu_i];
 
@@ -397,7 +402,7 @@ void pubKeyframe(const Estimator &estimator)
             {
 
                 int imu_i = it_per_id.start_frame;
-                Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth;
+                Vector3d pts_i = it_per_id.feature_per_frame[0].depth == 0 ? it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth : it_per_id.feature_per_frame[0].point * it_per_id.feature_per_frame[0].depth;
                 Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0])
                                       + estimator.Ps[imu_i];
                 geometry_msgs::Point32 p;

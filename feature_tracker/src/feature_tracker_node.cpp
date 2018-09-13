@@ -127,6 +127,7 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
 #endif
     }
     // update all id in ids[]
+    //If has ids[i] == -1 (newly added pts by cv::goodFeaturesToTrack), substitute by gloabl id counter (n_id)
     for (unsigned int i = 0;; i++)
     {
         bool completed = false;
@@ -137,10 +138,11 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
             break;
     }
     //向estimator发布的点云内容包括：
-    //  1.特征点在相机坐标系的归一化坐标
-    //  2.相机ID号
-    //  3.特征点的ID号
-    // 这里修改的话，可以多发布一个对应坐标的深度信息，也可以考虑发布整个depth图像
+    // 特征点在相机坐标系的归一化坐标
+    // 特征点ID
+    // 特征点的图像坐标系坐标
+    // 估算的特征点速度
+    // 对应坐标的深度信息（新加）
     if (PUB_THIS_FRAME)
     {
         //vector<int> test;
@@ -171,6 +173,7 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
                 if (trackerData[i].track_cnt[j] > 1)
                 {
                     int p_id = ids[j];
+                    //not used
                     hash_ids[i].insert(p_id);
                     geometry_msgs::Point32 p;
                     p.x = un_pts[j].x;

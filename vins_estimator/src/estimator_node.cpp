@@ -305,11 +305,13 @@ void process()
             TicToc t_s;
             map<int, vector<pair<int, Eigen::Matrix<double, 8, 1>>>> image;
             //对每一个特征点
-            //add debug print here?, test if feature_id has changed
             for (unsigned int i = 0; i < img_msg->points.size(); i++)
             {
+                //就是特征点id， 0.5 for fun??
                 int v = img_msg->channels[0].values[i] + 0.5;
+                //feature_id is the same as v
                 int feature_id = v / NUM_OF_CAM;
+                //always 0 in my case
                 int camera_id = v % NUM_OF_CAM;
                 double x = img_msg->points[i].x;
                 double y = img_msg->points[i].y;
@@ -319,14 +321,13 @@ void process()
                 double velocity_x = img_msg->channels[3].values[i];
                 double velocity_y = img_msg->channels[4].values[i];
                 double depth = img_msg->channels[5].values[i];
+                //确保是归一化
                 ROS_ASSERT(z == 1);
                 Eigen::Matrix<double, 8, 1> xyz_uv_velocity_depth;
                 xyz_uv_velocity_depth << x, y, z, p_u, p_v, velocity_x, velocity_y, depth;
                 image[feature_id].emplace_back(camera_id,  xyz_uv_velocity_depth);
             }
             //准备输出在processImage里完成
-            //后天任务：看pub函数
-            //思路：
             estimator.processImage(image, img_msg->header);
 
             double whole_t = t_s.toc();

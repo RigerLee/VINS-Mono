@@ -66,6 +66,7 @@ CameraPoseVisualization cameraposevisual(1, 0, 0, 1);
 Eigen::Vector3d last_t(-100, -100, -100);
 double last_image_time = -1;
 
+//not used in my case, just ignore sequence 1-5
 void new_sequence()
 {
     printf("new sequence\n");
@@ -122,7 +123,7 @@ void point_callback(const sensor_msgs::PointCloudConstPtr &point_msg)
     /*
     for (unsigned int i = 0; i < point_msg->points.size(); i++)
     {
-        printf("%d, 3D point: %f, %f, %f 2D point %f, %f \n",i , point_msg->points[i].x, 
+        printf("%d, 3D point: %f, %f, %f 2D point %f, %f \n",i , point_msg->points[i].x,
                                                      point_msg->points[i].y,
                                                      point_msg->points[i].z,
                                                      point_msg->channels[i].values[0],
@@ -170,7 +171,7 @@ void imu_forward_callback(const nav_msgs::Odometry::ConstPtr &forward_msg)
         Vector3d vio_t_cam;
         Quaterniond vio_q_cam;
         vio_t_cam = vio_t + vio_q * tic;
-        vio_q_cam = vio_q * qic;        
+        vio_q_cam = vio_q * qic;
 
         cameraposevisual.reset();
         cameraposevisual.add_pose(vio_t_cam, vio_q_cam);
@@ -217,7 +218,7 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     Vector3d vio_t_cam;
     Quaterniond vio_q_cam;
     vio_t_cam = vio_t + vio_q * tic;
-    vio_q_cam = vio_q * qic;        
+    vio_q_cam = vio_q * qic;
 
     if (!VISUALIZE_IMU_FORWARD)
     {
@@ -303,6 +304,7 @@ void process()
 
         // find out the messages with same time stamp
         m_buf.lock();
+        //get image_msg, pose_msg and point_msg
         if(!image_buf.empty() && !point_buf.empty() && !pose_buf.empty())
         {
             if (image_buf.front()->header.stamp.toSec() > pose_buf.front()->header.stamp.toSec())
@@ -315,7 +317,7 @@ void process()
                 point_buf.pop();
                 printf("throw point at beginning\n");
             }
-            else if (image_buf.back()->header.stamp.toSec() >= pose_buf.front()->header.stamp.toSec() 
+            else if (image_buf.back()->header.stamp.toSec() >= pose_buf.front()->header.stamp.toSec()
                 && point_buf.back()->header.stamp.toSec() >= pose_buf.front()->header.stamp.toSec())
             {
                 pose_msg = pose_buf.front();
@@ -372,7 +374,7 @@ void process()
             }
             else
                 ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::MONO8);
-            
+
             cv::Mat image = ptr->image;
             // build keyframe
             Vector3d T = Vector3d(pose_msg->pose.pose.position.x,
@@ -384,8 +386,8 @@ void process()
                                      pose_msg->pose.pose.orientation.z).toRotationMatrix();
             if((T - last_t).norm() > SKIP_DIS)
             {
-                vector<cv::Point3f> point_3d; 
-                vector<cv::Point2f> point_2d_uv; 
+                vector<cv::Point3f> point_3d;
+                vector<cv::Point2f> point_2d_uv;
                 vector<cv::Point2f> point_2d_normal;
                 vector<double> point_id;
 
@@ -412,7 +414,7 @@ void process()
                 }
 
                 KeyFrame* keyframe = new KeyFrame(pose_msg->header.stamp.toSec(), frame_index, T, R, image,
-                                   point_3d, point_2d_uv, point_2d_normal, point_id, sequence);   
+                                   point_3d, point_2d_uv, point_2d_normal, point_id, sequence);
                 m_process.lock();
                 start_flag = 1;
                 posegraph.addKeyFrame(keyframe, 1);
@@ -478,6 +480,7 @@ int main(int argc, char **argv)
     LOOP_CLOSURE = fsSettings["loop_closure"];
     std::string IMAGE_TOPIC;
     int LOAD_PREVIOUS_POSE_GRAPH;
+    // prepare for loop closure (load vocabulary, set topic, etc)
     if (LOOP_CLOSURE)
     {
         ROW = fsSettings["image_height"];
@@ -491,7 +494,7 @@ int main(int argc, char **argv)
         cout << "BRIEF_PATTERN_FILE" << BRIEF_PATTERN_FILE << endl;
         m_camera = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(config_file.c_str());
 
-        fsSettings["image_topic"] >> IMAGE_TOPIC;        
+        fsSettings["image_topic"] >> IMAGE_TOPIC;
         fsSettings["pose_graph_save_path"] >> POSE_GRAPH_SAVE_PATH;
         fsSettings["output_path"] >> VINS_RESULT_PATH;
         fsSettings["save_image"] >> DEBUG_IMAGE;
@@ -502,7 +505,7 @@ int main(int argc, char **argv)
         std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
         fout.close();
         fsSettings.release();
-
+        //not used
         if (LOAD_PREVIOUS_POSE_GRAPH)
         {
             printf("load pose graph\n");
@@ -520,18 +523,26 @@ int main(int argc, char **argv)
     }
 
     fsSettings.release();
-
+    // publish camera pose by imu propagate and odometry (orientation)
     ros::Subscriber sub_imu_forward = n.subscribe("/vins_estimator/imu_propagate", 2000, imu_forward_callback);
     ros::Subscriber sub_vio = n.subscribe("/vins_estimator/odometry", 2000, vio_callback);
+
+    //get image msg, store in image_buf
     ros::Subscriber sub_image = n.subscribe(IMAGE_TOPIC, 2000, image_callback);
+    //get keyframe_pose, store in pose_buf
     ros::Subscriber sub_pose = n.subscribe("/vins_estimator/keyframe_pose", 2000, pose_callback);
+    //get extrinsic
     ros::Subscriber sub_extrinsic = n.subscribe("/vins_estimator/extrinsic", 2000, extrinsic_callback);
+    //get keyframe_point, store in point_buf (point cloud msg, important(contains pts info))
     ros::Subscriber sub_point = n.subscribe("/vins_estimator/keyframe_point", 2000, point_callback);
+    //do relocalization here.
+    // pose_graph publish match_points to vins_estimator, estimator then publish relo_relative_pose
     ros::Subscriber sub_relo_relative_pose = n.subscribe("/vins_estimator/relo_relative_pose", 2000, relo_relative_pose_callback);
 
     pub_match_img = n.advertise<sensor_msgs::Image>("match_image", 1000);
     pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
     pub_key_odometrys = n.advertise<visualization_msgs::Marker>("key_odometrys", 1000);
+    //not used
     pub_vio_path = n.advertise<nav_msgs::Path>("no_loop_path", 1000);
     pub_match_points = n.advertise<sensor_msgs::PointCloud>("match_points", 100);
 
@@ -539,6 +550,7 @@ int main(int argc, char **argv)
     std::thread keyboard_command_process;
 
     measurement_process = std::thread(process);
+    // save pose graph
     keyboard_command_process = std::thread(command);
 
 

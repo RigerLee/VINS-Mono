@@ -49,21 +49,26 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     double parallax_sum = 0;
     int parallax_num = 0;
     last_track_num = 0;
+    //对一张图的所有特征点
     for (auto &id_pts : image)
     {
+        //id_pts.second[0].second: Eigen::Matrix<double, 8, 1>
         FeaturePerFrame f_per_fra(id_pts.second[0].second, td);
 
         int feature_id = id_pts.first;
+        //find_if：根据指定的pred运算条件（以仿函数表示），循环查找[first,last)内的所有元素，找出第一个令pred运算结果true者
+        // feature: list<FeaturePerId>, 这里遍历 FeaturePerId， 看这个id是否出现过
         auto it = find_if(feature.begin(), feature.end(), [feature_id](const FeaturePerId &it)
                           {
             return it.feature_id == feature_id;
                           });
-
+        //之前没有这个id，加到feature
         if (it == feature.end())
         {
             feature.push_back(FeaturePerId(feature_id, frame_count));
             feature.back().feature_per_frame.push_back(f_per_fra);
         }
+        //找到这个id（特征点）了，把这一帧的特征加入相同id下的feature_per_frame
         else if (it->feature_id == feature_id)
         {
             it->feature_per_frame.push_back(f_per_fra);

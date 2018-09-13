@@ -115,10 +115,12 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     ROS_DEBUG("new image coming ------------------------------------------");
     ROS_DEBUG("Adding feature points %lu", image.size());
     //判断视差决定是否marginalization（不会更改点的顺序）
-    // feature_per_frame: 图像上的一个点
-    // feature_per_id: 某个id图像上的所有点的集合
-    // feature: 所有id的集合
+    // f_manager是连续帧中追踪到的特征点的管理class
+    // feature_per_frame: 同一个特征点在不同frame上的特征
+    // feature_per_id: 一个id（特征点）
+    // feature: 所有id的vector
     if (f_manager.addFeatureCheckParallax(frame_count, image, td))
+        //视差足够大，边缘化最旧的frame
         marginalization_flag = MARGIN_OLD;
     else
         marginalization_flag = MARGIN_SECOND_NEW;
@@ -1056,7 +1058,7 @@ void Estimator::slideWindow()
                 all_image_frame.erase(all_image_frame.begin(), it_0);
 
             }
-            //删除最早的一帧
+            //删除最早的一帧相关连的特征点
             slideWindowOld();
         }
     }
@@ -1090,7 +1092,7 @@ void Estimator::slideWindow()
             dt_buf[WINDOW_SIZE].clear();
             linear_acceleration_buf[WINDOW_SIZE].clear();
             angular_velocity_buf[WINDOW_SIZE].clear();
-            //删除最新的一帧
+            //删除最晚的一帧相关连的特征点
             slideWindowNew();
         }
     }
