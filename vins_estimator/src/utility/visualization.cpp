@@ -4,7 +4,7 @@ using namespace ros;
 using namespace Eigen;
 ros::Publisher pub_odometry, pub_latest_odometry;
 ros::Publisher pub_path, pub_relo_path;
-ros::Publisher pub_point_cloud, pub_margin_cloud;
+ros::Publisher pub_point_cloud, pub_point_cloud2, pub_margin_cloud;
 ros::Publisher pub_key_poses;
 ros::Publisher pub_relo_relative_pose;
 ros::Publisher pub_camera_pose;
@@ -28,6 +28,7 @@ void registerPub(ros::NodeHandle &n)
     pub_relo_path = n.advertise<nav_msgs::Path>("relocalization_path", 1000);
     pub_odometry = n.advertise<nav_msgs::Odometry>("odometry", 1000);
     pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud", 1000);
+    pub_point_cloud2 = n.advertise<sensor_msgs::PointCloud2>("point_cloud2", 1000);
     pub_margin_cloud = n.advertise<sensor_msgs::PointCloud>("history_cloud", 1000);
     pub_key_poses = n.advertise<visualization_msgs::Marker>("key_poses", 1000);
     pub_camera_pose = n.advertise<nav_msgs::Odometry>("camera_pose", 1000);
@@ -246,6 +247,7 @@ void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header)
 void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
 {
     sensor_msgs::PointCloud point_cloud, loop_point_cloud;
+    sensor_msgs::PointCloud2 point_cloud2;
     point_cloud.header = header;
     loop_point_cloud.header = header;
 
@@ -284,6 +286,8 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
     prev_pcd_id = pcd_id_temp;
     //"point_cloud"
     pub_point_cloud.publish(point_cloud);
+    sensor_msgs::convertPointCloudToPointCloud2(point_cloud, point_cloud2);
+    pub_point_cloud2.publish(point_cloud2);
 
 
     // pub margined potin
