@@ -268,15 +268,16 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
           double depth = it_per_id.feature_per_frame[0].depth;
           if (depth != 0)
           {
+              //camera coordinate
               Vector3d pts_i = it_per_id.feature_per_frame[0].point * depth / 1000;
+              //C_imu = extrinsicRotation * C_cam + extrinsicTranslation
+              //C_world = extrinsicRotation * C_imu + extrinsicTranslation
               Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[imu_i];
-              // debug
               //ROS_ERROR("x: %f   y: %f   z: %f   depth: %f", pts_i(0),pts_i(1),pts_i(2),depth);
               geometry_msgs::Point32 p;
               p.x = w_pts_i(0);
               p.y = w_pts_i(1);
               p.z = w_pts_i(2);
-
               point_cloud.points.push_back(p);
           }
         }

@@ -29,6 +29,8 @@ void PoseGraph::registerPub(ros::NodeHandle &n)
     pub_pg_path = n.advertise<nav_msgs::Path>("pose_graph_path", 1000);
     pub_base_path = n.advertise<nav_msgs::Path>("base_path", 1000);
     pub_pose_graph = n.advertise<visualization_msgs::MarkerArray>("pose_graph", 1000);
+    pub_dense_pcl = n.advertise<sensor_msgs::PointCloud>("dense_pcl", 1000);
+    pub_cur_pcl = n.advertise<sensor_msgs::PointCloud>("current_pcl", 1000);
     for (int i = 1; i < 10; i++)
         pub_path[i] = n.advertise<nav_msgs::Path>("path_" + to_string(i), 1000);
 }
@@ -44,8 +46,11 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     //shift to base frame
     Vector3d vio_P_cur;
     Matrix3d vio_R_cur;
+    // sequence = 1, sequence_cnt = 0 at init, sequence_cnt++
+    // then sequence_cnt remains 1 (no new sequence in my case)
     if (sequence_cnt != cur_kf->sequence)
     {
+        //run once
         sequence_cnt++;
         sequence_loop.push_back(0);
         w_t_vio = Eigen::Vector3d(0, 0, 0);
@@ -55,7 +60,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         r_drift = Eigen::Matrix3d::Identity();
         m_drift.unlock();
     }
-    
+    // cur_kf 自带一个index   这里改为global_index
     cur_kf->getVioPose(vio_P_cur, vio_R_cur);
     vio_P_cur = w_r_vio * vio_P_cur + w_t_vio;
     vio_R_cur = w_r_vio *  vio_R_cur;
@@ -63,9 +68,11 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     cur_kf->index = global_index;
     global_index++;
 	int loop_index = -1;
+	// always true
     if (flag_detect_loop)
     {
         TicToc tmp_t;
+        // get loop_index here
         loop_index = detectLoop(cur_kf, cur_kf->index);
     }
     else
@@ -145,9 +152,31 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     pose_stamped.pose.orientation.y = Q.y();
     pose_stamped.pose.orientation.z = Q.z();
     pose_stamped.pose.orientation.w = Q.w();
+
+
     path[sequence_cnt].poses.push_back(pose_stamped);
     path[sequence_cnt].header = pose_stamped.header;
 
+    // clear previous points
+    current_pcl.points.clear();
+
+    for (auto &pcl : cur_kf->point_3d_depth)
+    {
+        Vector3d pts_i(pcl.x , pcl.y, pcl.z);
+        Vector3d w_pts_i = R * (qic * pts_i + tic) + P;
+        geometry_msgs::Point32 pts;
+        pts.x = w_pts_i(0);
+        pts.y = w_pts_i(1);
+        pts.z = w_pts_i(2);
+        dense_pcl.points.push_back(pts);
+        current_pcl.points.push_back(pts);
+    }
+    current_pcl.header = pose_stamped.header;
+    dense_pcl.header = pose_stamped.header;
+
+
+
+    // not used
     if (SAVE_LOOP_PATH)
     {
         ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
@@ -165,6 +194,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
               << endl;
         loop_path_file.close();
     }
+    // not used
     //draw local connection
     if (SHOW_S_EDGE)
     {
@@ -183,6 +213,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
             rit++;
         }
     }
+    // don't know
     if (SHOW_L_EDGE)
     {
         if (cur_kf->has_loop)
@@ -203,7 +234,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         }
     }
     //posegraph_visualization->add_pose(P + Vector3d(VISUALIZATION_SHIFT_X, VISUALIZATION_SHIFT_Y, 0), Q);
-
+    // add frame to key frame list
 	keyframelist.push_back(cur_kf);
     publish();
 	m_keyframelist.unlock();
@@ -305,6 +336,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
 {
     // put image into image_pool; for visualization
     cv::Mat compressed_image;
+    // set false, not used
     if (DEBUG_IMAGE)
     {
         int feature_num = keyframe->keypoints.size();
@@ -323,7 +355,9 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     TicToc t_add;
     db.add(keyframe->brief_descriptors);
     //printf("add feature time: %f", t_add.toc());
+    //------------------------------------------------------------------------------
     // ret[0] is the nearest neighbour's score. threshold change with neighour score
+    //------------------------------------------------------------------------------
     bool find_loop = false;
     cv::Mat loop_result;
     if (DEBUG_IMAGE)
@@ -588,7 +622,8 @@ void PoseGraph::updatePath()
     }
     base_path.poses.clear();
     posegraph_visualization->reset();
-
+    dense_pcl.points.clear();
+    // not used
     if (SAVE_LOOP_PATH)
     {
         ofstream loop_path_file_tmp(VINS_RESULT_PATH, ios::out);
@@ -614,6 +649,19 @@ void PoseGraph::updatePath()
         pose_stamped.pose.orientation.y = Q.y();
         pose_stamped.pose.orientation.z = Q.z();
         pose_stamped.pose.orientation.w = Q.w();
+
+        for (auto &pcl : (*it)->point_3d_depth)
+        {
+            Vector3d pts_i(pcl.x , pcl.y, pcl.z);
+            Vector3d w_pts_i = R * (qic * pts_i + tic) + P;
+            geometry_msgs::Point32 pts;
+            pts.x = w_pts_i(0);
+            pts.y = w_pts_i(1);
+            pts.z = w_pts_i(2);
+            dense_pcl.points.push_back(pts);
+
+        }
+
         if((*it)->sequence == 0)
         {
             base_path.poses.push_back(pose_stamped);
@@ -623,8 +671,9 @@ void PoseGraph::updatePath()
         {
             path[(*it)->sequence].poses.push_back(pose_stamped);
             path[(*it)->sequence].header = pose_stamped.header;
+            dense_pcl.header = pose_stamped.header;
         }
-
+        //not used
         if (SAVE_LOOP_PATH)
         {
             ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
@@ -643,6 +692,7 @@ void PoseGraph::updatePath()
             loop_path_file.close();
         }
         //draw local connection
+        // not used
         if (SHOW_S_EDGE)
         {
             list<KeyFrame*>::reverse_iterator rit = keyframelist.rbegin();
@@ -881,7 +931,11 @@ void PoseGraph::publish()
             posegraph_visualization->publish_by(pub_pose_graph, path[sequence_cnt].header);
         }
     }
+
     pub_base_path.publish(base_path);
+    pub_cur_pcl.publish(current_pcl);
+    pub_dense_pcl.publish(dense_pcl);
+
     //posegraph_visualization->publish_by(pub_pose_graph, path[sequence_cnt].header);
 }
 

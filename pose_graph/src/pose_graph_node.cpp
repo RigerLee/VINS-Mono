@@ -5,6 +5,8 @@
 #include <sensor_msgs/PointCloud.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
 #include <visualization_msgs/Marker.h>
 #include <std_msgs/Bool.h>
 #include <cv_bridge/cv_bridge.h>
@@ -24,7 +26,7 @@
 #define SKIP_FIRST_CNT 10
 using namespace std;
 
-queue<sensor_msgs::ImageConstPtr> image_buf;
+queue<sensor_msgs::ImageConstPtr> image_buf,depth_buf;
 queue<sensor_msgs::PointCloudConstPtr> point_buf;
 queue<nav_msgs::Odometry::ConstPtr> pose_buf;
 queue<Eigen::Vector3d> odometry_buf;
@@ -39,6 +41,8 @@ int skip_cnt = 0;
 bool load_flag = 0;
 bool start_flag = 0;
 double SKIP_DIS = 0;
+int PCL_DIST = 10;
+int BOUNDARY = 20;
 
 int VISUALIZATION_SHIFT_X;
 int VISUALIZATION_SHIFT_Y;
@@ -48,6 +52,7 @@ int DEBUG_IMAGE;
 int VISUALIZE_IMU_FORWARD;
 int LOOP_CLOSURE;
 int FAST_RELOCALIZATION;
+
 
 camodocal::CameraPtr m_camera;
 Eigen::Vector3d tic;
@@ -82,6 +87,8 @@ void new_sequence()
     m_buf.lock();
     while(!image_buf.empty())
         image_buf.pop();
+    while(!depth_buf.empty())
+        depth_buf.pop();
     while(!point_buf.empty())
         point_buf.pop();
     while(!pose_buf.empty())
@@ -91,13 +98,14 @@ void new_sequence()
     m_buf.unlock();
 }
 
-void image_callback(const sensor_msgs::ImageConstPtr &image_msg)
+void image_callback(const sensor_msgs::ImageConstPtr &image_msg, const sensor_msgs::ImageConstPtr &depth_msg)
 {
-    //ROS_INFO("image_callback!");
+    //ROS_WARN("image_callback!1");
     if(!LOOP_CLOSURE)
         return;
     m_buf.lock();
     image_buf.push(image_msg);
+    depth_buf.push(depth_msg);
     m_buf.unlock();
     //printf(" image time %f \n", image_msg->header.stamp.toSec());
 
@@ -151,6 +159,7 @@ void pose_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     */
 }
 
+// not used
 void imu_forward_callback(const nav_msgs::Odometry::ConstPtr &forward_msg)
 {
     if (VISUALIZE_IMU_FORWARD)
@@ -264,6 +273,7 @@ void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     }
     pub_key_odometrys.publish(key_odometrys);
 
+    // not used
     if (!LOOP_CLOSURE)
     {
         geometry_msgs::PoseStamped pose_stamped;
@@ -299,9 +309,9 @@ void process()
     while (true)
     {
         sensor_msgs::ImageConstPtr image_msg = NULL;
+        sensor_msgs::ImageConstPtr depth_msg = NULL;
         sensor_msgs::PointCloudConstPtr point_msg = NULL;
         nav_msgs::Odometry::ConstPtr pose_msg = NULL;
-
         // find out the messages with same time stamp
         m_buf.lock();
         //get image_msg, pose_msg and point_msg
@@ -325,9 +335,15 @@ void process()
                 while (!pose_buf.empty())
                     pose_buf.pop();
                 while (image_buf.front()->header.stamp.toSec() < pose_msg->header.stamp.toSec())
+                {
                     image_buf.pop();
+                    depth_buf.pop();
+                }
                 image_msg = image_buf.front();
+                depth_msg = depth_buf.front();
                 image_buf.pop();
+                depth_buf.pop();
+
 
                 while (point_buf.front()->header.stamp.toSec() < pose_msg->header.stamp.toSec())
                     point_buf.pop();
@@ -336,7 +352,6 @@ void process()
             }
         }
         m_buf.unlock();
-
         if (pose_msg != NULL)
         {
             //printf(" pose time %f \n", pose_msg->header.stamp.toSec());
@@ -375,7 +390,23 @@ void process()
             else
                 ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::MONO8);
 
+            //depth has encoding TYPE_16UC1
+            cv_bridge::CvImageConstPtr depth_ptr;
+            // debug use     std::cout<<depth_msg->encoding<<std::endl;
+            {
+                sensor_msgs::Image img;
+                img.header = depth_msg->header;
+                img.height = depth_msg->height;
+                img.width = depth_msg->width;
+                img.is_bigendian = depth_msg->is_bigendian;
+                img.step = depth_msg->step;
+                img.data = depth_msg->data;
+                img.encoding = sensor_msgs::image_encodings::MONO16;
+                depth_ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO16);
+            }
+
             cv::Mat image = ptr->image;
+            cv::Mat depth = depth_ptr->image;
             // build keyframe
             Vector3d T = Vector3d(pose_msg->pose.pose.position.x,
                                   pose_msg->pose.pose.position.y,
@@ -389,6 +420,7 @@ void process()
                 vector<cv::Point3f> point_3d;
                 vector<cv::Point2f> point_2d_uv;
                 vector<cv::Point2f> point_2d_normal;
+                vector<cv::Point3f> point_3d_depth;
                 vector<double> point_id;
 
                 for (unsigned int i = 0; i < point_msg->points.size(); i++)
@@ -412,8 +444,27 @@ void process()
 
                     //printf("u %f, v %f \n", p_2d_uv.x, p_2d_uv.y);
                 }
-
-                KeyFrame* keyframe = new KeyFrame(pose_msg->header.stamp.toSec(), frame_index, T, R, image,
+                // ROW: 480 y  COL: 640 x
+                int count_ = 0;
+                for (int i = BOUNDARY; i < COL - BOUNDARY; i += PCL_DIST)
+                {
+                    for (int j = BOUNDARY; j < ROW - BOUNDARY; j += PCL_DIST)
+                    {
+                        Eigen::Vector2d a(i, j);
+                        Eigen::Vector3d b;
+                        m_camera->liftProjective(a, b);
+                        float depth_val = ((float)depth.at<unsigned short>(j, i)) / 1000.0;
+                        if (depth_val != 0)
+                        {
+                            ++count_;
+                            point_3d_depth.push_back(cv::Point3f(b.x() * depth_val, b.y() * depth_val, depth_val));
+                        }
+                    }
+                }
+                ROS_WARN("Depth points count: %d", count_);
+                // 通过frame_index标记对应帧
+                // add sparse depth img to this class
+                KeyFrame* keyframe = new KeyFrame(pose_msg->header.stamp.toSec(), frame_index, T, R, image, point_3d_depth,
                                    point_3d, point_2d_uv, point_2d_normal, point_id, sequence);
                 m_process.lock();
                 start_flag = 1;
@@ -478,7 +529,7 @@ int main(int argc, char **argv)
 
 
     LOOP_CLOSURE = fsSettings["loop_closure"];
-    std::string IMAGE_TOPIC;
+    std::string IMAGE_TOPIC,DEPTH_TOPIC;
     int LOAD_PREVIOUS_POSE_GRAPH;
     // prepare for loop closure (load vocabulary, set topic, etc)
     if (LOOP_CLOSURE)
@@ -495,6 +546,7 @@ int main(int argc, char **argv)
         m_camera = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(config_file.c_str());
 
         fsSettings["image_topic"] >> IMAGE_TOPIC;
+        fsSettings["depth_topic"] >> DEPTH_TOPIC;
         fsSettings["pose_graph_save_path"] >> POSE_GRAPH_SAVE_PATH;
         fsSettings["output_path"] >> VINS_RESULT_PATH;
         fsSettings["save_image"] >> DEBUG_IMAGE;
@@ -523,19 +575,29 @@ int main(int argc, char **argv)
     }
 
     fsSettings.release();
-    // publish camera pose by imu propagate and odometry (orientation)
+    // publish camera pose by imu propagate and odometry (Ps and Rs of curr frame)
+    // not important
     ros::Subscriber sub_imu_forward = n.subscribe("/vins_estimator/imu_propagate", 2000, imu_forward_callback);
+    // odometry_buf
     ros::Subscriber sub_vio = n.subscribe("/vins_estimator/odometry", 2000, vio_callback);
 
     //get image msg, store in image_buf
-    ros::Subscriber sub_image = n.subscribe(IMAGE_TOPIC, 2000, image_callback);
-    //get keyframe_pose, store in pose_buf
+    //ros::Subscriber sub_image = n.subscribe(IMAGE_TOPIC, 2000, image_callback);
+    message_filters::Subscriber<sensor_msgs::Image> sub_image(n, IMAGE_TOPIC, 1);
+    message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, DEPTH_TOPIC, 1);
+    message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> sync(sub_image, sub_depth, 2000);
+    sync.registerCallback(boost::bind(&image_callback, _1, _2));
+
+    //get keyframe_pose(Ps and Rs), store in pose_buf (marginalization_flag == 0)
     ros::Subscriber sub_pose = n.subscribe("/vins_estimator/keyframe_pose", 2000, pose_callback);
-    //get extrinsic
+    //get extrinsic (ric qic  odometry.pose.pose.position and odometry.pose.pose.orientation)
+    //update tic and qic real-time
     ros::Subscriber sub_extrinsic = n.subscribe("/vins_estimator/extrinsic", 2000, extrinsic_callback);
-    //get keyframe_point, store in point_buf (point cloud msg, important(contains pts info))
+    //get keyframe_point(pointclude), store in point_buf (marginalization_flag == 0)
     ros::Subscriber sub_point = n.subscribe("/vins_estimator/keyframe_point", 2000, point_callback);
-    //do relocalization here.
+
+
+    // do relocalization here.
     // pose_graph publish match_points to vins_estimator, estimator then publish relo_relative_pose
     ros::Subscriber sub_relo_relative_pose = n.subscribe("/vins_estimator/relo_relative_pose", 2000, relo_relative_pose_callback);
 
@@ -548,9 +610,9 @@ int main(int argc, char **argv)
 
     std::thread measurement_process;
     std::thread keyboard_command_process;
-
+    // main thread
     measurement_process = std::thread(process);
-    // save pose graph
+    // not used
     keyboard_command_process = std::thread(command);
 
 

@@ -45,6 +45,8 @@ public:
 	KeyFrame* getKeyFrame(int index);
 	nav_msgs::Path path[10];
 	nav_msgs::Path base_path;
+    sensor_msgs::PointCloud dense_pcl;
+    sensor_msgs::PointCloud current_pcl;
 	CameraPoseVisualization* posegraph_visualization;
 	void savePoseGraph();
 	void loadPoseGraph();
@@ -84,6 +86,8 @@ private:
 	ros::Publisher pub_base_path;
 	ros::Publisher pub_pose_graph;
 	ros::Publisher pub_path[10];
+	ros::Publisher pub_dense_pcl;
+    ros::Publisher pub_cur_pcl;
 };
 
 template <typename T>

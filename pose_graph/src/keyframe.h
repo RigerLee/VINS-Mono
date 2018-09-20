@@ -32,7 +32,7 @@ public:
 class KeyFrame
 {
 public:
-	KeyFrame(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i, cv::Mat &_image,
+	KeyFrame(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i, cv::Mat &_image, vector<cv::Point3f> &_point_3d_depth,
 			 vector<cv::Point3f> &_point_3d, vector<cv::Point2f> &_point_2d_uv, vector<cv::Point2f> &_point_2d_normal, 
 			 vector<double> &_point_id, int _sequence);
 	KeyFrame(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i, Vector3d &_T_w_i, Matrix3d &_R_w_i,
@@ -85,9 +85,10 @@ public:
 	Eigen::Matrix3d origin_vio_R;
 	cv::Mat image;
 	cv::Mat thumbnail;
-	vector<cv::Point3f> point_3d; 
+    vector<cv::Point3f> point_3d;
 	vector<cv::Point2f> point_2d_uv;
 	vector<cv::Point2f> point_2d_norm;
+    vector<cv::Point3f> point_3d_depth;
 	vector<double> point_id;
 	vector<cv::KeyPoint> keypoints;
 	vector<cv::KeyPoint> keypoints_norm;

@@ -13,6 +13,7 @@
 #include "utility/visualization.h"
 
 
+
 Estimator estimator;
 
 std::condition_variable con;
@@ -94,6 +95,7 @@ void update()
         predict(tmp_imu_buf.front());
 
 }
+
 
 std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>, sensor_msgs::PointCloudConstPtr>>
 getMeasurements()
@@ -226,7 +228,7 @@ void process()
                  });
         lk.unlock();
         m_estimator.lock();
-        //可能有多帧图像？
+        //可能有多帧图像
         for (auto &measurement : measurements)
         {
             auto img_msg = measurement.second;
@@ -327,7 +329,7 @@ void process()
                 xyz_uv_velocity_depth << x, y, z, p_u, p_v, velocity_x, velocity_y, depth;
                 image[feature_id].emplace_back(camera_id,  xyz_uv_velocity_depth);
             }
-            //准备输出在processImage里完成
+            //视差+滑窗
             estimator.processImage(image, img_msg->header);
 
             double whole_t = t_s.toc();
