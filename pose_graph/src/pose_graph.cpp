@@ -29,7 +29,7 @@ void PoseGraph::registerPub(ros::NodeHandle &n)
     pub_pg_path = n.advertise<nav_msgs::Path>("pose_graph_path", 1000);
     pub_base_path = n.advertise<nav_msgs::Path>("base_path", 1000);
     pub_pose_graph = n.advertise<visualization_msgs::MarkerArray>("pose_graph", 1000);
-    pub_dense_pcl = n.advertise<sensor_msgs::PointCloud>("dense_pcl", 1000);
+    pub_dense_pcl = n.advertise<sensor_msgs::PointCloud2>("dense_pcl", 1000);
     pub_cur_pcl = n.advertise<sensor_msgs::PointCloud>("current_pcl", 1000);
     for (int i = 1; i < 10; i++)
         pub_path[i] = n.advertise<nav_msgs::Path>("path_" + to_string(i), 1000);
@@ -160,6 +160,11 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     // clear previous points
     current_pcl.points.clear();
 
+    current_pcl.header.stamp = ros::Time(cur_kf->time_stamp);
+    current_pcl.header.frame_id = "world";
+    sensor_msgs::PointCloud2 tmp_pcl;
+    m_densepcl.lock();
+    dense_pcl.header = current_pcl.header;
     for (auto &pcl : cur_kf->point_3d_depth)
     {
         Vector3d pts_i(pcl.x , pcl.y, pcl.z);
@@ -168,12 +173,12 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         pts.x = w_pts_i(0);
         pts.y = w_pts_i(1);
         pts.z = w_pts_i(2);
+
         dense_pcl.points.push_back(pts);
         current_pcl.points.push_back(pts);
     }
-    current_pcl.header = pose_stamped.header;
-    dense_pcl.header = pose_stamped.header;
-
+    sensor_msgs::convertPointCloudToPointCloud2(dense_pcl, tmp_pcl);
+    m_densepcl.unlock();
 
 
     // not used
@@ -237,7 +242,9 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     // add frame to key frame list
 	keyframelist.push_back(cur_kf);
     publish();
+    pub_dense_pcl.publish(tmp_pcl);
 	m_keyframelist.unlock();
+
 }
 
 
@@ -614,6 +621,18 @@ void PoseGraph::optimize4DoF()
 
 void PoseGraph::updatePath()
 {
+    auto time_cur = std::chrono::system_clock::now();
+    std::chrono::duration<double> duration = time_cur - time_prev;
+    if (duration.count() < 5)
+        return;
+
+    // store info for updating dense pcl without locking keyframe list
+    // which may take much time
+    vector<vector<cv::Point3f>> tmp_keyframelist;
+    queue<pair<Matrix3d, Vector3d>> tmp_RTlist;
+    std_msgs::Header tmp_header;
+
+
     m_keyframelist.lock();
     list<KeyFrame*>::iterator it;
     for (int i = 1; i <= sequence_cnt; i++)
@@ -622,7 +641,6 @@ void PoseGraph::updatePath()
     }
     base_path.poses.clear();
     posegraph_visualization->reset();
-    dense_pcl.points.clear();
     // not used
     if (SAVE_LOOP_PATH)
     {
@@ -635,6 +653,9 @@ void PoseGraph::updatePath()
         Vector3d P;
         Matrix3d R;
         (*it)->getPose(P, R);
+
+        tmp_RTlist.push(make_pair(R, P));
+
         Quaterniond Q;
         Q = R;
 //        printf("path p: %f, %f, %f\n",  P.x(),  P.z(),  P.y() );
@@ -650,17 +671,9 @@ void PoseGraph::updatePath()
         pose_stamped.pose.orientation.z = Q.z();
         pose_stamped.pose.orientation.w = Q.w();
 
-        for (auto &pcl : (*it)->point_3d_depth)
-        {
-            Vector3d pts_i(pcl.x , pcl.y, pcl.z);
-            Vector3d w_pts_i = R * (qic * pts_i + tic) + P;
-            geometry_msgs::Point32 pts;
-            pts.x = w_pts_i(0);
-            pts.y = w_pts_i(1);
-            pts.z = w_pts_i(2);
-            dense_pcl.points.push_back(pts);
+        tmp_keyframelist.push_back((*it)->point_3d_depth);
 
-        }
+
 
         if((*it)->sequence == 0)
         {
@@ -671,7 +684,7 @@ void PoseGraph::updatePath()
         {
             path[(*it)->sequence].poses.push_back(pose_stamped);
             path[(*it)->sequence].header = pose_stamped.header;
-            dense_pcl.header = pose_stamped.header;
+            tmp_header = pose_stamped.header;
         }
         //not used
         if (SAVE_LOOP_PATH)
@@ -741,6 +754,33 @@ void PoseGraph::updatePath()
     }
     publish();
     m_keyframelist.unlock();
+
+    sensor_msgs::PointCloud tmp_dense_pcl;
+    tmp_dense_pcl.header = tmp_header;
+    for (auto &pcl_vect : tmp_keyframelist)
+    {
+        Vector3d P;
+        Matrix3d R;
+        R = tmp_RTlist.front().first;
+        P = tmp_RTlist.front().second;
+        for (auto &pcl : pcl_vect)
+        {
+            Vector3d pts_i(pcl.x , pcl.y, pcl.z);
+            Vector3d w_pts_i = R * (qic * pts_i + tic) + P;
+            geometry_msgs::Point32 pts;
+            pts.x = w_pts_i(0);
+            pts.y = w_pts_i(1);
+            pts.z = w_pts_i(2);
+            tmp_dense_pcl.points.push_back(pts);
+        }
+        tmp_RTlist.pop();
+    }
+    m_densepcl.lock();
+    dense_pcl.points.clear();
+    dense_pcl.header = tmp_dense_pcl.header;
+    dense_pcl.points = tmp_dense_pcl.points;
+    m_densepcl.unlock();
+
 }
 
 
@@ -933,8 +973,7 @@ void PoseGraph::publish()
     }
 
     pub_base_path.publish(base_path);
-    pub_cur_pcl.publish(current_pcl);
-    pub_dense_pcl.publish(dense_pcl);
+    //pub_cur_pcl.publish(current_pcl);
 
     //posegraph_visualization->publish_by(pub_pose_graph, path[sequence_cnt].header);
 }

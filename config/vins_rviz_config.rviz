@@ -6,7 +6,7 @@ Panels:
       Expanded:
         - /VIO1
         - /pose_graph1
-        - /PointCloud1
+        - /PointCloud21
       Splitter Ratio: 0.465115994
     Tree Height: 221
   - Class: rviz/Selection
@@ -27,7 +27,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: tracked image
+    SyncSource: ""
   - Class: rviz/Displays
     Help Height: 78
     Name: Displays
@@ -272,7 +272,7 @@ Visualization Manager:
           Marker Topic: /pose_graph/pose_graph
           Name: loop_visual
           Namespaces:
-            CameraPoseVisualization: true
+            {}
           Queue Size: 100
           Value: true
         - Class: rviz/MarkerArray
@@ -443,36 +443,6 @@ Visualization Manager:
           Value: false
       Enabled: true
       Name: pose_graph
-    - Alpha: 1
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
-        Value: true
-      Axis: Z
-      Channel Name: intensity
-      Class: rviz/PointCloud2
-      Color: 255; 255; 255
-      Color Transformer: Intensity
-      Decay Time: 9999999
-      Enabled: false
-      Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 4096
-      Min Color: 0; 0; 0
-      Min Intensity: 0
-      Name: PointCloud2
-      Position Transformer: XYZ
-      Queue Size: 10
-      Selectable: true
-      Size (Pixels): 5
-      Size (m): 0.00999999978
-      Style: Points
-      Topic: /vins_estimator/point_cloud2
-      Unreliable: false
-      Use Fixed Frame: true
-      Use rainbow: true
-      Value: false
     - Class: octomap_rviz_plugin/OccupancyGrid
       Enabled: false
       Max. Height Display: 3.40282347e+38
@@ -493,9 +463,9 @@ Visualization Manager:
         Value: true
       Axis: Z
       Channel Name: intensity
-      Class: rviz/PointCloud
+      Class: rviz/PointCloud2
       Color: 255; 255; 255
-      Color Transformer: Intensity
+      Color Transformer: ""
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
@@ -503,13 +473,13 @@ Visualization Manager:
       Max Intensity: 4096
       Min Color: 0; 0; 0
       Min Intensity: 0
-      Name: PointCloud
-      Position Transformer: XYZ
+      Name: PointCloud2
+      Position Transformer: ""
       Queue Size: 10
       Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.0299999993
-      Style: Flat Squares
+      Size (Pixels): 1
+      Size (m): 0.00999999978
+      Style: Points
       Topic: /pose_graph/dense_pcl
       Unreliable: false
       Use Fixed Frame: true
@@ -553,10 +523,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.669797301
+      Pitch: 1.56979632
       Target Frame: <Fixed Frame>
       Value: XYOrbit (rviz)
-      Yaw: 5.3261714
+      Yaw: 4.5761714
     Saved: ~
 Window Geometry:
   Displays:

@@ -12,6 +12,8 @@
 #include <nav_msgs/Path.h>
 #include <geometry_msgs/PointStamped.h>
 #include <nav_msgs/Odometry.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/point_cloud_conversion.h>
 #include <stdio.h>
 #include <ros/ros.h>
 #include "keyframe.h"
@@ -69,6 +71,7 @@ private:
 	std::mutex m_optimize_buf;
 	std::mutex m_path;
 	std::mutex m_drift;
+	std::mutex m_densepcl;
 	std::thread t_optimization;
 	std::queue<int> optimize_buf;
 
@@ -78,6 +81,7 @@ private:
 	map<int, cv::Mat> image_pool;
 	int earliest_loop_index;
 	int base_sequence;
+    std::chrono::time_point<std::chrono::system_clock> time_prev;
 
 	BriefDatabase db;
 	BriefVocabulary* voc;

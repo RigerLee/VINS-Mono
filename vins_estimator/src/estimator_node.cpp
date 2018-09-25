@@ -322,7 +322,7 @@ void process()
                 double p_v = img_msg->channels[2].values[i];
                 double velocity_x = img_msg->channels[3].values[i];
                 double velocity_y = img_msg->channels[4].values[i];
-                double depth = img_msg->channels[5].values[i];
+                double depth = img_msg->channels[5].values[i] / 1000.0;
                 //确保是归一化
                 ROS_ASSERT(z == 1);
                 Eigen::Matrix<double, 8, 1> xyz_uv_velocity_depth;

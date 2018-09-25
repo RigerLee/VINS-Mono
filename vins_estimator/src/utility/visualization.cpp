@@ -4,7 +4,7 @@ using namespace ros;
 using namespace Eigen;
 ros::Publisher pub_odometry, pub_latest_odometry;
 ros::Publisher pub_path, pub_relo_path;
-ros::Publisher pub_point_cloud, pub_point_cloud2, pub_margin_cloud;
+ros::Publisher pub_point_cloud, pub_margin_cloud;
 ros::Publisher pub_key_poses;
 ros::Publisher pub_relo_relative_pose;
 ros::Publisher pub_camera_pose;
@@ -28,7 +28,6 @@ void registerPub(ros::NodeHandle &n)
     pub_relo_path = n.advertise<nav_msgs::Path>("relocalization_path", 1000);
     pub_odometry = n.advertise<nav_msgs::Odometry>("odometry", 1000);
     pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud", 1000);
-    pub_point_cloud2 = n.advertise<sensor_msgs::PointCloud2>("point_cloud2", 1000);
     pub_margin_cloud = n.advertise<sensor_msgs::PointCloud>("history_cloud", 1000);
     pub_key_poses = n.advertise<visualization_msgs::Marker>("key_poses", 1000);
     pub_camera_pose = n.advertise<nav_msgs::Odometry>("camera_pose", 1000);
@@ -247,11 +246,9 @@ void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header)
 void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
 {
     sensor_msgs::PointCloud point_cloud, loop_point_cloud;
-    sensor_msgs::PointCloud2 point_cloud2;
     point_cloud.header = header;
     loop_point_cloud.header = header;
 
-    vector<int> pcd_id_temp;
     for (auto &it_per_id : estimator.f_manager.feature)
     {
         int used_num;
@@ -260,35 +257,23 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
             continue;
         if (it_per_id.start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id.solve_flag != 1)
             continue;
-        pcd_id_temp.push_back(it_per_id.feature_id);
-        vector<int>::iterator result = find(prev_pcd_id.begin(), prev_pcd_id.end(), it_per_id.feature_id);
-        if (result == prev_pcd_id.end())
-        {
-          int imu_i = it_per_id.start_frame;
-          double depth = it_per_id.feature_per_frame[0].depth;
-          if (depth != 0)
-          {
-              //camera coordinate
-              Vector3d pts_i = it_per_id.feature_per_frame[0].point * depth / 1000;
-              //C_imu = extrinsicRotation * C_cam + extrinsicTranslation
-              //C_world = extrinsicRotation * C_imu + extrinsicTranslation
-              Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[imu_i];
-              //ROS_ERROR("x: %f   y: %f   z: %f   depth: %f", pts_i(0),pts_i(1),pts_i(2),depth);
-              geometry_msgs::Point32 p;
-              p.x = w_pts_i(0);
-              p.y = w_pts_i(1);
-              p.z = w_pts_i(2);
-              point_cloud.points.push_back(p);
-          }
-        }
 
+        int imu_i = it_per_id.start_frame;
+        double depth = it_per_id.feature_per_frame[0].depth;
+        //camera coordinate
+        Vector3d pts_i = depth == 0 ? it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth : it_per_id.feature_per_frame[0].point * depth;
+        //C_imu = extrinsicRotation * C_cam + extrinsicTranslation
+        //C_world = extrinsicRotation * C_imu + extrinsicTranslation
+        Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[imu_i];
+        //ROS_ERROR("x: %f   y: %f   z: %f   depth: %f", pts_i(0),pts_i(1),pts_i(2),depth);
+        geometry_msgs::Point32 p;
+        p.x = w_pts_i(0);
+        p.y = w_pts_i(1);
+        p.z = w_pts_i(2);
+        point_cloud.points.push_back(p);
     }
-    prev_pcd_id.clear();
-    prev_pcd_id = pcd_id_temp;
     //"point_cloud"
     pub_point_cloud.publish(point_cloud);
-    sensor_msgs::convertPointCloudToPointCloud2(point_cloud, point_cloud2);
-    pub_point_cloud2.publish(point_cloud2);
 
 
     // pub margined potin
@@ -308,7 +293,8 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
             && it_per_id.solve_flag == 1 )
         {
             int imu_i = it_per_id.start_frame;
-            Vector3d pts_i = it_per_id.feature_per_frame[0].depth == 0 ? it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth : it_per_id.feature_per_frame[0].point * it_per_id.feature_per_frame[0].depth;
+            double depth = it_per_id.feature_per_frame[0].depth;
+            Vector3d pts_i = depth == 0 ? it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth : it_per_id.feature_per_frame[0].point * depth;
             //std::cout<<"pts_i(0):"<<pts_i(0)<<"    pts_i(1):"<<pts_i(1)<<"    pts_i(2):"<<pts_i(2)<<std::endl;
             Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[imu_i];
 
@@ -407,23 +393,29 @@ void pubKeyframe(const Estimator &estimator)
             {
 
                 int imu_i = it_per_id.start_frame;
-                Vector3d pts_i = it_per_id.feature_per_frame[0].depth == 0 ? it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth : it_per_id.feature_per_frame[0].point * it_per_id.feature_per_frame[0].depth;
-                Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0])
-                                      + estimator.Ps[imu_i];
-                geometry_msgs::Point32 p;
-                p.x = w_pts_i(0);
-                p.y = w_pts_i(1);
-                p.z = w_pts_i(2);
-                point_cloud.points.push_back(p);
+                double depth = it_per_id.feature_per_frame[0].depth;
+                //Vector3d pts_i = depth == 0 ? it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth : it_per_id.feature_per_frame[0].point * depth;
+                if (depth != 0)
+                {
+                    Vector3d pts_i = it_per_id.feature_per_frame[0].point * depth;
+                    Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0])
+                                       + estimator.Ps[imu_i];
+                    geometry_msgs::Point32 p;
+                    p.x = w_pts_i(0);
+                    p.y = w_pts_i(1);
+                    p.z = w_pts_i(2);
+                    point_cloud.points.push_back(p);
 
-                int imu_j = WINDOW_SIZE - 2 - it_per_id.start_frame;
-                sensor_msgs::ChannelFloat32 p_2d;
-                p_2d.values.push_back(it_per_id.feature_per_frame[imu_j].point.x());
-                p_2d.values.push_back(it_per_id.feature_per_frame[imu_j].point.y());
-                p_2d.values.push_back(it_per_id.feature_per_frame[imu_j].uv.x());
-                p_2d.values.push_back(it_per_id.feature_per_frame[imu_j].uv.y());
-                p_2d.values.push_back(it_per_id.feature_id);
-                point_cloud.channels.push_back(p_2d);
+                    int imu_j = WINDOW_SIZE - 2 - it_per_id.start_frame;
+                    sensor_msgs::ChannelFloat32 p_2d;
+                    p_2d.values.push_back(it_per_id.feature_per_frame[imu_j].point.x());
+                    p_2d.values.push_back(it_per_id.feature_per_frame[imu_j].point.y());
+                    p_2d.values.push_back(it_per_id.feature_per_frame[imu_j].uv.x());
+                    p_2d.values.push_back(it_per_id.feature_per_frame[imu_j].uv.y());
+                    p_2d.values.push_back(it_per_id.feature_id);
+                    point_cloud.channels.push_back(p_2d);
+                }
+
             }
 
         }

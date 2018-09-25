@@ -41,7 +41,7 @@ int skip_cnt = 0;
 bool load_flag = 0;
 bool start_flag = 0;
 double SKIP_DIS = 0;
-int PCL_DIST = 10;
+int PCL_DIST = 20;
 int BOUNDARY = 20;
 
 int VISUALIZATION_SHIFT_X;
