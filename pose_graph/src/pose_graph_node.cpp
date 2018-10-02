@@ -41,22 +41,27 @@ int skip_cnt = 0;
 bool load_flag = 0;
 bool start_flag = 0;
 double SKIP_DIS = 0;
-int PCL_DIST = 20;
-int BOUNDARY = 20;
 
+float PCL_MAX_DIST, PCL_MIN_DIST;
+int U_BOUNDARY, D_BOUNDARY, L_BOUNDARY, R_BOUNDARY;
 int VISUALIZATION_SHIFT_X;
 int VISUALIZATION_SHIFT_Y;
 int ROW;
 int COL;
+int PCL_DIST;
 int DEBUG_IMAGE;
 int VISUALIZE_IMU_FORWARD;
 int LOOP_CLOSURE;
 int FAST_RELOCALIZATION;
 
 
-camodocal::CameraPtr m_camera;
+camodocal::CameraPtr m_camera, depth_m_camera;
 Eigen::Vector3d tic;
 Eigen::Matrix3d qic;
+
+Eigen::Matrix<double, 3, 1> ti_d;
+Eigen::Matrix<double, 3, 3> qi_d;
+
 ros::Publisher pub_match_img;
 ros::Publisher pub_match_points;
 ros::Publisher pub_camera_pose_visual;
@@ -446,15 +451,15 @@ void process()
                 }
                 // ROW: 480 y  COL: 640 x
                 int count_ = 0;
-                for (int i = BOUNDARY; i < COL - BOUNDARY; i += PCL_DIST)
+                for (int i = L_BOUNDARY; i < COL - R_BOUNDARY; i += PCL_DIST)
                 {
-                    for (int j = BOUNDARY; j < ROW - BOUNDARY; j += PCL_DIST)
+                    for (int j = U_BOUNDARY; j < ROW - D_BOUNDARY; j += PCL_DIST)
                     {
                         Eigen::Vector2d a(i, j);
                         Eigen::Vector3d b;
-                        m_camera->liftProjective(a, b);
+                        depth_m_camera->liftProjective(a, b);
                         float depth_val = ((float)depth.at<unsigned short>(j, i)) / 1000.0;
-                        if (depth_val != 0)
+                        if (depth_val > PCL_MIN_DIST && depth_val < PCL_MAX_DIST)
                         {
                             ++count_;
                             point_3d_depth.push_back(cv::Point3f(b.x() * depth_val, b.y() * depth_val, depth_val));
@@ -462,6 +467,7 @@ void process()
                     }
                 }
                 ROS_WARN("Depth points count: %d", count_);
+
                 // 通过frame_index标记对应帧
                 // add sparse depth img to this class
                 KeyFrame* keyframe = new KeyFrame(pose_msg->header.stamp.toSec(), frame_index, T, R, image, point_3d_depth,
@@ -516,9 +522,12 @@ int main(int argc, char **argv)
     n.getParam("skip_cnt", SKIP_CNT);
     n.getParam("skip_dis", SKIP_DIS);
     std::string config_file;
+    std::string depth_config_file;
     n.getParam("config_file", config_file);
+    n.getParam("depth_config_file", depth_config_file);
     cv::FileStorage fsSettings(config_file, cv::FileStorage::READ);
-    if(!fsSettings.isOpened())
+    cv::FileStorage fsSettings_depth(depth_config_file, cv::FileStorage::READ);
+    if(!fsSettings.isOpened() || !fsSettings_depth.isOpened())
     {
         std::cerr << "ERROR: Wrong path to settings" << std::endl;
     }
@@ -536,6 +545,13 @@ int main(int argc, char **argv)
     {
         ROW = fsSettings["image_height"];
         COL = fsSettings["image_width"];
+        PCL_DIST = fsSettings["pcl_dist"];
+        U_BOUNDARY = fsSettings["u_boundary"];
+        D_BOUNDARY = fsSettings["d_boundary"];
+        L_BOUNDARY = fsSettings["l_boundary"];
+        R_BOUNDARY = fsSettings["r_boundary"];
+        PCL_MIN_DIST = fsSettings["pcl_min_dist"];
+        PCL_MAX_DIST = fsSettings["pcl_max_dist"];
         std::string pkg_path = ros::package::getPath("pose_graph");
         string vocabulary_file = pkg_path + "/../support_files/brief_k10L6.bin";
         cout << "vocabulary_file" << vocabulary_file << endl;
@@ -544,12 +560,20 @@ int main(int argc, char **argv)
         BRIEF_PATTERN_FILE = pkg_path + "/../support_files/brief_pattern.yml";
         cout << "BRIEF_PATTERN_FILE" << BRIEF_PATTERN_FILE << endl;
         m_camera = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(config_file.c_str());
+        depth_m_camera = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(depth_config_file.c_str());
 
         fsSettings["image_topic"] >> IMAGE_TOPIC;
         fsSettings["depth_topic"] >> DEPTH_TOPIC;
         fsSettings["pose_graph_save_path"] >> POSE_GRAPH_SAVE_PATH;
         fsSettings["output_path"] >> VINS_RESULT_PATH;
         fsSettings["save_image"] >> DEBUG_IMAGE;
+
+        cv::Mat cv_qid, cv_tid;
+        fsSettings_depth["extrinsicRotation"] >> cv_qid;
+        fsSettings_depth["extrinsicTranslation"] >> cv_tid;
+        cv::cv2eigen(cv_qid, qi_d);
+        cv::cv2eigen(cv_tid, ti_d);
+
         VISUALIZE_IMU_FORWARD = fsSettings["visualize_imu_forward"];
         LOAD_PREVIOUS_POSE_GRAPH = fsSettings["load_previous_pose_graph"];
         FAST_RELOCALIZATION = fsSettings["fast_relocalization"];
@@ -557,6 +581,7 @@ int main(int argc, char **argv)
         std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
         fout.close();
         fsSettings.release();
+        fsSettings_depth.release();
         //not used
         if (LOAD_PREVIOUS_POSE_GRAPH)
         {
@@ -575,6 +600,7 @@ int main(int argc, char **argv)
     }
 
     fsSettings.release();
+    fsSettings_depth.release();
     // publish camera pose by imu propagate and odometry (Ps and Rs of curr frame)
     // not important
     ros::Subscriber sub_imu_forward = n.subscribe("/vins_estimator/imu_propagate", 2000, imu_forward_callback);

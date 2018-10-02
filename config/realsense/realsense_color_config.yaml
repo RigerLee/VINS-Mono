@@ -6,24 +6,35 @@ image_topic: "/zr300_node/color/image_raw"
 depth_topic: "/zr300_node/depth/image_raw"
 output_path: "/home/riger/output/"
 
+#pointcloud settings
+pcl_dist: 20
+u_boundary: 10
+d_boundary: 10
+l_boundary: 40
+r_boundary: 40
+pcl_min_dist: 0.5
+pcl_max_dist: 3
+
 #camera calibration
 model_type: PINHOLE
 camera_name: camera
 image_width: 640
 image_height: 480
+  #TODO modify distortion
+
 distortion_parameters:
-   k1: 9.2615504465028850e-02
-   k2: -1.8082438825995681e-01
-   p1: -6.5484100374765971e-04
-   p2: -3.5829351558557421e-04
+   k1: 6.422684341669083e-02
+   k2: -1.2272646278142929e-01
+   p1: -6.812019273638725e-04
+   p2: -1.99805642478168e-03
 projection_parameters:
-   fx: 6.0970550296798035e+02
-   fy: 6.0909579671294716e+02
-   cx: 3.1916667152289227e+02
-   cy: 2.3558360480225772e+02
+   fx: 6.108115234375e+02
+   fy: 6.110562744140625e+02
+   cx: 3.155500793457031e+02
+   cy: 2.4687928771972656e+02
 
 # Extrinsic parameter between IMU and Camera.
-estimate_extrinsic: 1   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
+estimate_extrinsic: 0   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
                         # 1  Have an initial guess about extrinsic parameters. We will optimize around your initial guess.
                         # 2  Don't know anything about extrinsic parameters. You don't need to give R,T. We will try to calibrate it. Do some rotation movement at beginning.
 #If you choose 0 or 1, you should write down the following matrix.
@@ -32,19 +43,19 @@ extrinsicRotation: !!opencv-matrix
    rows: 3
    cols: 3
    dt: d
-   data: [ 0.99964621,  0.01105994,  0.02418954,
-           -0.01088975,  0.9999151,  -0.00715601,
-           -0.02426663,  0.00689006,  0.99968178]
+   data: [ 0.9999871376671051,  0.004973726388241054,  0.0009932503032817252,
+           -0.004978295423181007,  0.9999767881620737,  0.004651850356872469,
+           -0.00097009021724254,  -0.004656735216663503,  0.999988686807052]
 #Translation from camera frame to imu frame, imu^T_cam
 extrinsicTranslation: !!opencv-matrix
    rows: 3
    cols: 1
    dt: d
-   data: [0.07494282, -0.01077138, -0.00641822]
+   data: [0.0950048, 0.000354953, 0.00288419]
 
 #feature traker paprameters
-max_cnt: 150           # max feature number in feature tracking
-min_dist: 18            # min distance between two features
+max_cnt: 200           # max feature number in feature tracking
+min_dist: 15            # min distance between two features
 freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image
 F_threshold: 1.0        # ransac threshold (pixel)
 show_track: 1           # publish tracking image as topic

@@ -1,0 +1,33 @@
+%YAML:1.0
+
+#depth camera calibration
+model_type: PINHOLE
+camera_name: camera
+image_width: 640
+image_height: 480
+
+distortion_parameters:
+   k1: 0
+   k2: 0
+   p1: 0
+   p2: 0
+projection_parameters:
+   fx: 5.866366577148438e+02
+   fy: 5.866366577148438e+02
+   cx: 3.195e+02
+   cy: 2.3820433044433594e+02
+
+extrinsicRotation: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 0.9999859914335056,  0.005121537823318731,  0.0013367075495458746,
+           -0.005122031052716999,  0.9999868153976587,  0.0003658261116448422,
+           -0.0013348163333208407,  -0.0003726676445226071,  0.9999990396916304]
+#Translation from camera frame to imu frame, imu^T_cam
+extrinsicTranslation: !!opencv-matrix
+   rows: 3
+   cols: 1
+   dt: d
+   data: [0.0358194, 0.0019198, -3.13179e-05]
+

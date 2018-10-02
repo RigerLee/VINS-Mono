@@ -168,7 +168,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     for (auto &pcl : cur_kf->point_3d_depth)
     {
         Vector3d pts_i(pcl.x , pcl.y, pcl.z);
-        Vector3d w_pts_i = R * (qic * pts_i + tic) + P;
+        Vector3d w_pts_i = R * (qi_d * pts_i + ti_d) + P;
         geometry_msgs::Point32 pts;
         pts.x = w_pts_i(0);
         pts.y = w_pts_i(1);
@@ -218,7 +218,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
             rit++;
         }
     }
-    // don't know
+    // show connections between loop frames, not needed
     if (SHOW_L_EDGE)
     {
         if (cur_kf->has_loop)
@@ -623,7 +623,7 @@ void PoseGraph::updatePath()
 {
     auto time_cur = std::chrono::system_clock::now();
     std::chrono::duration<double> duration = time_cur - time_prev;
-    if (duration.count() < 5)
+    if (duration.count() < 4)
         return;
 
     // store info for updating dense pcl without locking keyframe list
@@ -755,6 +755,7 @@ void PoseGraph::updatePath()
     publish();
     m_keyframelist.unlock();
 
+    // throw the costy part beyond m_keyframelist
     sensor_msgs::PointCloud tmp_dense_pcl;
     tmp_dense_pcl.header = tmp_header;
     for (auto &pcl_vect : tmp_keyframelist)
@@ -766,7 +767,7 @@ void PoseGraph::updatePath()
         for (auto &pcl : pcl_vect)
         {
             Vector3d pts_i(pcl.x , pcl.y, pcl.z);
-            Vector3d w_pts_i = R * (qic * pts_i + tic) + P;
+            Vector3d w_pts_i = R * (qi_d * pts_i + ti_d) + P;
             geometry_msgs::Point32 pts;
             pts.x = w_pts_i(0);
             pts.y = w_pts_i(1);
@@ -968,7 +969,7 @@ void PoseGraph::publish()
         {
             pub_pg_path.publish(path[i]);
             pub_path[i].publish(path[i]);
-            posegraph_visualization->publish_by(pub_pose_graph, path[sequence_cnt].header);
+            //posegraph_visualization->publish_by(pub_pose_graph, path[sequence_cnt].header);
         }
     }
 
