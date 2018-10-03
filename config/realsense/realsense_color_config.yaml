@@ -7,13 +7,13 @@ depth_topic: "/zr300_node/depth/image_raw"
 output_path: "/home/riger/output/"
 
 #pointcloud settings
-pcl_dist: 20
+pcl_dist: 10
 u_boundary: 10
 d_boundary: 10
 l_boundary: 40
 r_boundary: 40
-pcl_min_dist: 0.5
-pcl_max_dist: 3
+pcl_min_dist: 0.3
+pcl_max_dist: 6
 
 #camera calibration
 model_type: PINHOLE
@@ -54,8 +54,8 @@ extrinsicTranslation: !!opencv-matrix
    data: [0.0950048, 0.000354953, 0.00288419]
 
 #feature traker paprameters
-max_cnt: 200           # max feature number in feature tracking
-min_dist: 15            # min distance between two features
+max_cnt: 150           # max feature number in feature tracking
+min_dist: 30            # min distance between two features
 freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image
 F_threshold: 1.0        # ransac threshold (pixel)
 show_track: 1           # publish tracking image as topic

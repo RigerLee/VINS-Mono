@@ -7,6 +7,10 @@
 #include <sensor_msgs/image_encodings.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
+
+#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+
 #include <visualization_msgs/Marker.h>
 #include <std_msgs/Bool.h>
 #include <cv_bridge/cv_bridge.h>
@@ -611,7 +615,10 @@ int main(int argc, char **argv)
     //ros::Subscriber sub_image = n.subscribe(IMAGE_TOPIC, 2000, image_callback);
     message_filters::Subscriber<sensor_msgs::Image> sub_image(n, IMAGE_TOPIC, 1);
     message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, DEPTH_TOPIC, 1);
-    message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> sync(sub_image, sub_depth, 2000);
+    //message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> sync(sub_image, sub_depth, 2000);
+    // fit fisheye camera
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,sensor_msgs::Image> syncPolicy;
+    message_filters::Synchronizer<syncPolicy> sync(syncPolicy(10), sub_image, sub_depth);
     sync.registerCallback(boost::bind(&image_callback, _1, _2));
 
     //get keyframe_pose(Ps and Rs), store in pose_buf (marginalization_flag == 0)
