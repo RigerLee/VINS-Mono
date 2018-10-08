@@ -80,6 +80,7 @@ void KeyFrame::computeWindowBRIEFPoint()
 	for(int i = 0; i < (int)point_2d_uv.size(); i++)
 	{
 	    cv::KeyPoint key;
+	    // point_2d_uv: pixel (x,y) in image
 	    key.pt = point_2d_uv[i];
 	    window_keypoints.push_back(key);
 	}
@@ -94,8 +95,12 @@ void KeyFrame::computeBRIEFPoint()
 		cv::FAST(image, keypoints, fast_th, true);
 	else
 	{
+        cv::FAST(image, keypoints, fast_th, true);
+        ROS_ERROR("num of FAST: %d",(int)keypoints.size());
+        keypoints.clear();
 		vector<cv::Point2f> tmp_pts;
-		cv::goodFeaturesToTrack(image, tmp_pts, 500, 0.01, 10);
+		cv::goodFeaturesToTrack(image, tmp_pts, 50, 0.1, 10);
+		ROS_ERROR("num of good features: %d",(int)tmp_pts.size());
 		for(int i = 0; i < (int)tmp_pts.size(); i++)
 		{
 		    cv::KeyPoint key;
@@ -298,7 +303,8 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	                << old_kf->index << "-" << "0raw_point.jpg";
 	        cv::imwrite( path.str().c_str(), loop_match_img);
 	    }
-	#endif
+    #endif
+	//ROS_ERROR("points before: %d", (int)matched_2d_cur.size());
 	//printf("search by des\n");
 	searchByBRIEFDes(matched_2d_old, matched_2d_old_norm, status, old_kf->brief_descriptors, old_kf->keypoints, old_kf->keypoints_norm);
 	reduceVector(matched_2d_cur, status);
@@ -308,6 +314,7 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	reduceVector(matched_3d, status);
 	reduceVector(matched_id, status);
 	//printf("search by des finish\n");
+
 
 	#if 0 
 		if (DEBUG_IMAGE)
@@ -405,8 +412,12 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	Eigen::Vector3d relative_t;
 	Quaterniond relative_q;
 	double relative_yaw;
+
+	//ROS_ERROR("points after: %d", (int)matched_2d_cur.size());
+
 	if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)
 	{
+
 		status.clear();
 	    PnPRANSAC(matched_2d_old_norm, matched_3d, status, PnP_T_old, PnP_R_old);
 	    reduceVector(matched_2d_cur, status);
@@ -415,6 +426,7 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	    reduceVector(matched_2d_old_norm, status);
 	    reduceVector(matched_3d, status);
 	    reduceVector(matched_id, status);
+		ROS_WARN("points left after RANSAC: %d", (int)matched_2d_cur.size());
 	    #if 1
 	    	if (DEBUG_IMAGE)
 	        {

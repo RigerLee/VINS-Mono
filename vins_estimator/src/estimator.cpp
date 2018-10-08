@@ -261,7 +261,7 @@ bool Estimator::initialStructure()
         SFMFeature tmp_feature;
         tmp_feature.state = false;
         tmp_feature.id = it_per_id.feature_id;
-        //一张图片的特征点都存到temp_feature,作为一个sfm feature
+        //同一个id(追踪的点)的所有特征都存到temp_feature,作为一个sfm feature
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
             imu_j++;
@@ -405,6 +405,7 @@ bool Estimator::visualInitialAlign()
     f_manager.triangulate(Ps, &(TIC_TMP[0]), &(RIC[0]));
 
     double s = (x.tail<1>())(0);
+    // do repropagate here
     for (int i = 0; i <= WINDOW_SIZE; i++)
     {
         pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);

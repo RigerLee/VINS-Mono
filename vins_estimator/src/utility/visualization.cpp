@@ -394,8 +394,9 @@ void pubKeyframe(const Estimator &estimator)
 
                 int imu_i = it_per_id.start_frame;
                 double depth = it_per_id.feature_per_frame[0].depth;
-                //Vector3d pts_i = depth == 0 ? it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth : it_per_id.feature_per_frame[0].point * depth;
-                if (depth != 0)
+                depth = depth == 0 ? it_per_id.estimated_depth : depth;
+                // a limit on distance, avoid large drifts
+                if (depth < 6)
                 {
                     Vector3d pts_i = it_per_id.feature_per_frame[0].point * depth;
                     Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0])
@@ -420,6 +421,7 @@ void pubKeyframe(const Estimator &estimator)
 
         }
         //"keyframe_point"
+        // now have more points than origin
         pub_keyframe_point.publish(point_cloud);
     }
 }

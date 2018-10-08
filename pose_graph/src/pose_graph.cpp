@@ -355,7 +355,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     //first query; then add this frame into database!
     QueryResults ret;
     TicToc t_query;
-    db.query(keyframe->brief_descriptors, ret, 4, frame_index - 50);
+    db.query(keyframe->brief_descriptors, ret, 4, frame_index - 100);
     //printf("query time: %f", t_query.toc());
     //cout << "Searching for Image " << frame_index << ". " << ret << endl;
 
@@ -387,11 +387,12 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     }
     // a good match with its nerghbour
     if (ret.size() >= 1 &&ret[0].Score > 0.05)
+    {
         for (unsigned int i = 1; i < ret.size(); i++)
         {
             //if (ret[i].Score > ret[0].Score * 0.3)
             if (ret[i].Score > 0.015)
-            {          
+            {
                 find_loop = true;
                 int tmp_index = ret[i].Id;
                 if (DEBUG_IMAGE && 0)
@@ -404,14 +405,17 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
             }
 
         }
+    }
 /*
+
+
     if (DEBUG_IMAGE)
     {
         cv::imshow("loop_result", loop_result);
         cv::waitKey(20);
     }
 */
-    if (find_loop && frame_index > 50)
+    if (find_loop && frame_index > 100)
     {
         int min_index = -1;
         for (unsigned int i = 0; i < ret.size(); i++)

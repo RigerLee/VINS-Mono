@@ -454,7 +454,7 @@ void process()
                     //printf("u %f, v %f \n", p_2d_uv.x, p_2d_uv.y);
                 }
                 // ROW: 480 y  COL: 640 x
-                int count_ = 0;
+                //debug: int count_ = 0;
                 for (int i = L_BOUNDARY; i < COL - R_BOUNDARY; i += PCL_DIST)
                 {
                     for (int j = U_BOUNDARY; j < ROW - D_BOUNDARY; j += PCL_DIST)
@@ -465,12 +465,12 @@ void process()
                         float depth_val = ((float)depth.at<unsigned short>(j, i)) / 1000.0;
                         if (depth_val > PCL_MIN_DIST && depth_val < PCL_MAX_DIST)
                         {
-                            ++count_;
+                            //debug: ++count_;
                             point_3d_depth.push_back(cv::Point3f(b.x() * depth_val, b.y() * depth_val, depth_val));
                         }
                     }
                 }
-                ROS_WARN("Depth points count: %d", count_);
+                //debug: ROS_WARN("Depth points count: %d", count_);
 
                 // 通过frame_index标记对应帧
                 // add sparse depth img to this class
