@@ -4,9 +4,8 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
-        - /VIO1
         - /pose_graph1
-        - /PointCloud21
+        - /PointCloud21/Status1
       Splitter Ratio: 0.465115994
     Tree Height: 221
   - Class: rviz/Selection
@@ -27,7 +26,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: tracked image
   - Class: rviz/Displays
     Help Height: 78
     Name: Displays
@@ -280,7 +279,7 @@ Visualization Manager:
           Marker Topic: /pose_graph/camera_pose_visual
           Name: camera_visual
           Namespaces:
-            {}
+            CameraPoseVisualization: true
           Queue Size: 100
           Value: true
         - Class: rviz/Image
@@ -443,29 +442,17 @@ Visualization Manager:
           Value: false
       Enabled: true
       Name: pose_graph
-    - Class: octomap_rviz_plugin/OccupancyGrid
-      Enabled: false
-      Max. Height Display: 3.40282347e+38
-      Max. Octree Depth: 16
-      Min. Height Display: -3.40282347e+38
-      Name: OccupancyGrid
-      Octomap Topic: /octomap_full
-      Queue Size: 5
-      Value: false
-      Voxel Alpha: 1
-      Voxel Coloring: Z-Axis
-      Voxel Rendering: Occupied Voxels
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
+        Max Value: 0.503091574
+        Min Value: -2.02143788
         Value: true
       Axis: Z
       Channel Name: intensity
       Class: rviz/PointCloud2
       Color: 255; 255; 255
-      Color Transformer: ""
+      Color Transformer: AxisColor
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
@@ -474,13 +461,13 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Min Intensity: 0
       Name: PointCloud2
-      Position Transformer: ""
+      Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
       Size (Pixels): 1
-      Size (m): 0.00999999978
+      Size (m): 0.0199999996
       Style: Points
-      Topic: /pose_graph/dense_pcl
+      Topic: /pose_graph/octree
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -508,25 +495,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 10.2933693
+      Distance: 13.0549326
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -3.01851559
-        Y: -0.425969839
-        Z: 1.74767174e-05
+        X: -0.702492833
+        Y: 0.220002651
+        Z: 1.61058106e-05
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 1.56979632
+      Pitch: 0.669798553
       Target Frame: <Fixed Frame>
       Value: XYOrbit (rviz)
-      Yaw: 4.5761714
+      Yaw: 4.6717391
     Saved: ~
 Window Geometry:
   Displays:

@@ -1,0 +1,130 @@
+cmake_minimum_required(VERSION 3.12)
+project(VINS_Mono)
+
+set(CMAKE_CXX_STANDARD 14)
+
+include_directories(camera_model/include)
+include_directories(camera_model/include/camodocal)
+include_directories(camera_model/include/camodocal/calib)
+include_directories(camera_model/include/camodocal/camera_models)
+include_directories(camera_model/include/camodocal/chessboard)
+include_directories(camera_model/include/camodocal/gpl)
+include_directories(camera_model/include/camodocal/sparse_graph)
+include_directories(feature_tracker/src)
+include_directories(pose_graph/src)
+include_directories(pose_graph/src/ThirdParty)
+include_directories(pose_graph/src/ThirdParty/DBoW)
+include_directories(pose_graph/src/ThirdParty/DUtils)
+include_directories(pose_graph/src/ThirdParty/DVision)
+include_directories(pose_graph/src/utility)
+include_directories(vins_estimator/src)
+include_directories(vins_estimator/src/factor)
+include_directories(vins_estimator/src/initial)
+include_directories(vins_estimator/src/utility)
+
+add_executable(VINS_Mono
+        ar_demo/src/ar_demo_node.cpp
+        benchmark_publisher/src/benchmark_publisher_node.cpp
+        camera_model/include/camodocal/calib/CameraCalibration.h
+        camera_model/include/camodocal/camera_models/Camera.h
+        camera_model/include/camodocal/camera_models/CameraFactory.h
+        camera_model/include/camodocal/camera_models/CataCamera.h
+        camera_model/include/camodocal/camera_models/CostFunctionFactory.h
+        camera_model/include/camodocal/camera_models/EquidistantCamera.h
+        camera_model/include/camodocal/camera_models/PinholeCamera.h
+        camera_model/include/camodocal/camera_models/ScaramuzzaCamera.h
+        camera_model/include/camodocal/chessboard/Chessboard.h
+        camera_model/include/camodocal/chessboard/ChessboardCorner.h
+        camera_model/include/camodocal/chessboard/ChessboardQuad.h
+        camera_model/include/camodocal/chessboard/Spline.h
+        camera_model/include/camodocal/gpl/EigenQuaternionParameterization.h
+        camera_model/include/camodocal/gpl/EigenUtils.h
+        camera_model/include/camodocal/gpl/gpl.h
+        camera_model/include/camodocal/sparse_graph/Transform.h
+        camera_model/src/calib/CameraCalibration.cc
+        camera_model/src/camera_models/Camera.cc
+        camera_model/src/camera_models/CameraFactory.cc
+        camera_model/src/camera_models/CataCamera.cc
+        camera_model/src/camera_models/CostFunctionFactory.cc
+        camera_model/src/camera_models/EquidistantCamera.cc
+        camera_model/src/camera_models/PinholeCamera.cc
+        camera_model/src/camera_models/ScaramuzzaCamera.cc
+        camera_model/src/chessboard/Chessboard.cc
+        camera_model/src/gpl/EigenQuaternionParameterization.cc
+        camera_model/src/gpl/gpl.cc
+        camera_model/src/sparse_graph/Transform.cc
+        camera_model/src/intrinsic_calib.cc
+        feature_tracker/src/feature_tracker.cpp
+        feature_tracker/src/feature_tracker.h
+        feature_tracker/src/feature_tracker_node.cpp
+        feature_tracker/src/parameters.cpp
+        feature_tracker/src/parameters.h
+        feature_tracker/src/tic_toc.h
+        pose_graph/src/ThirdParty/DBoW/BowVector.cpp
+        pose_graph/src/ThirdParty/DBoW/BowVector.h
+        pose_graph/src/ThirdParty/DBoW/DBoW2.h
+        pose_graph/src/ThirdParty/DBoW/FBrief.cpp
+        pose_graph/src/ThirdParty/DBoW/FBrief.h
+        pose_graph/src/ThirdParty/DBoW/FClass.h
+        pose_graph/src/ThirdParty/DBoW/FeatureVector.cpp
+        pose_graph/src/ThirdParty/DBoW/FeatureVector.h
+        pose_graph/src/ThirdParty/DBoW/QueryResults.cpp
+        pose_graph/src/ThirdParty/DBoW/QueryResults.h
+        pose_graph/src/ThirdParty/DBoW/ScoringObject.cpp
+        pose_graph/src/ThirdParty/DBoW/ScoringObject.h
+        pose_graph/src/ThirdParty/DBoW/TemplatedDatabase.h
+        pose_graph/src/ThirdParty/DBoW/TemplatedVocabulary.h
+        pose_graph/src/ThirdParty/DUtils/DException.h
+        pose_graph/src/ThirdParty/DUtils/DUtils.h
+        pose_graph/src/ThirdParty/DUtils/Random.cpp
+        pose_graph/src/ThirdParty/DUtils/Random.h
+        pose_graph/src/ThirdParty/DUtils/Timestamp.cpp
+        pose_graph/src/ThirdParty/DUtils/Timestamp.h
+        pose_graph/src/ThirdParty/DVision/BRIEF.cpp
+        pose_graph/src/ThirdParty/DVision/BRIEF.h
+        pose_graph/src/ThirdParty/DVision/DVision.h
+        pose_graph/src/ThirdParty/VocabularyBinary.cpp
+        pose_graph/src/ThirdParty/VocabularyBinary.hpp
+        pose_graph/src/utility/CameraPoseVisualization.cpp
+        pose_graph/src/utility/CameraPoseVisualization.h
+        pose_graph/src/utility/tic_toc.h
+        pose_graph/src/utility/utility.cpp
+        pose_graph/src/utility/utility.h
+        pose_graph/src/keyframe.cpp
+        pose_graph/src/keyframe.h
+        pose_graph/src/parameters.h
+        pose_graph/src/pose_graph.cpp
+        pose_graph/src/pose_graph.h
+        pose_graph/src/pose_graph_node.cpp
+        vins_estimator/src/factor/imu_factor.h
+        vins_estimator/src/factor/integration_base.h
+        vins_estimator/src/factor/marginalization_factor.cpp
+        vins_estimator/src/factor/marginalization_factor.h
+        vins_estimator/src/factor/pose_local_parameterization.cpp
+        vins_estimator/src/factor/pose_local_parameterization.h
+        vins_estimator/src/factor/projection_factor.cpp
+        vins_estimator/src/factor/projection_factor.h
+        vins_estimator/src/factor/projection_td_factor.cpp
+        vins_estimator/src/factor/projection_td_factor.h
+        vins_estimator/src/initial/initial_aligment.cpp
+        vins_estimator/src/initial/initial_alignment.h
+        vins_estimator/src/initial/initial_ex_rotation.cpp
+        vins_estimator/src/initial/initial_ex_rotation.h
+        vins_estimator/src/initial/initial_sfm.cpp
+        vins_estimator/src/initial/initial_sfm.h
+        vins_estimator/src/initial/solve_5pts.cpp
+        vins_estimator/src/initial/solve_5pts.h
+        vins_estimator/src/utility/CameraPoseVisualization.cpp
+        vins_estimator/src/utility/CameraPoseVisualization.h
+        vins_estimator/src/utility/tic_toc.h
+        vins_estimator/src/utility/utility.cpp
+        vins_estimator/src/utility/utility.h
+        vins_estimator/src/utility/visualization.cpp
+        vins_estimator/src/utility/visualization.h
+        vins_estimator/src/estimator.cpp
+        vins_estimator/src/estimator.h
+        vins_estimator/src/estimator_node.cpp
+        vins_estimator/src/feature_manager.cpp
+        vins_estimator/src/feature_manager.h
+        vins_estimator/src/parameters.cpp
+        vins_estimator/src/parameters.h)

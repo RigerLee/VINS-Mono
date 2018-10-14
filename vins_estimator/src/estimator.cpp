@@ -105,6 +105,7 @@ void Estimator::processIMU(double dt, const Vector3d &linear_acceleration, const
         Vector3d un_acc = 0.5 * (un_acc_0 + un_acc_1);
         Ps[j] += dt * Vs[j] + 0.5 * dt * dt * un_acc;
         Vs[j] += dt * un_acc;
+        //ROS_ERROR("Ps: x %f  y %f  z %f   dt: %f    dt * un_acc: x %f  y %f  z %f  ", Ps[j].x(), Ps[j].y(), Ps[j].z(), dt, dt * un_acc.x(), dt * un_acc.y(), dt * un_acc.z());
     }
     acc_0 = linear_acceleration;
     gyr_0 = angular_velocity;
