@@ -25,11 +25,8 @@
 #include "ThirdParty/DVision/DVision.h"
 #include "ThirdParty/DBoW/TemplatedDatabase.h"
 #include "ThirdParty/DBoW/TemplatedVocabulary.h"
-
-#include <pcl_conversions/pcl_conversions.h>
-#include <pcl/point_cloud.h>
-#include <pcl/octree/octree_search.h>
-
+#include <octomap/octomap.h>
+#include <octomap_msgs/conversions.h>
 
 
 #define SHOW_S_EDGE false
@@ -52,8 +49,6 @@ public:
 	KeyFrame* getKeyFrame(int index);
 	nav_msgs::Path path[10];
 	nav_msgs::Path base_path;
-
-
 	CameraPoseVisualization* posegraph_visualization;
 	void savePoseGraph();
 	void loadPoseGraph();
@@ -65,6 +60,7 @@ public:
 	Vector3d w_t_vio;
 	Matrix3d w_r_vio;
 
+
 private:
 	int detectLoop(KeyFrame* keyframe, int frame_index);
 	void addKeyFrameIntoVoc(KeyFrame* keyframe);
@@ -75,7 +71,7 @@ private:
 	std::mutex m_optimize_buf;
 	std::mutex m_path;
 	std::mutex m_drift;
-	std::mutex m_octree;
+	std::mutex m_densepcl;
 	std::thread t_optimization;
 	std::queue<int> optimize_buf;
 
@@ -94,8 +90,7 @@ private:
 	ros::Publisher pub_base_path;
 	ros::Publisher pub_pose_graph;
 	ros::Publisher pub_path[10];
-	ros::Publisher pub_octree;
-    ros::Publisher pub_cur_pcl;
+        ros::Publisher pub_octomap;
 };
 
 template <typename T>

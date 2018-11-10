@@ -35,4 +35,4 @@ add_executable(feature_tracker
     )
 
 target_link_libraries(feature_tracker ${catkin_LIBRARIES} ${OpenCV_LIBS})
-target_link_libraries(feature_tracker /opt/ros/kinetic/lib/libmessage_filters.so)
+target_link_libraries(feature_tracker /opt/ros/melodic/lib/libmessage_filters.so)

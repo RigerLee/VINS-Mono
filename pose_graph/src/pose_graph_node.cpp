@@ -71,6 +71,7 @@ ros::Publisher pub_match_points;
 ros::Publisher pub_camera_pose_visual;
 ros::Publisher pub_key_odometrys;
 ros::Publisher pub_vio_path;
+
 nav_msgs::Path no_loop_path;
 
 std::string BRIEF_PATTERN_FILE;
@@ -80,10 +81,7 @@ CameraPoseVisualization cameraposevisual(1, 0, 0, 1);
 Eigen::Vector3d last_t(-100, -100, -100);
 double last_image_time = -1;
 
-// octree setup
-double resolution = 0.03;
-pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree(resolution);
-pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+octomap::OcTree* octree = new octomap::OcTree(0.1);
 
 //not used in my case, just ignore sequence 1-5
 void new_sequence()
@@ -389,20 +387,8 @@ void process()
             }
 
             cv_bridge::CvImageConstPtr ptr;
-            if (image_msg->encoding == "8UC1")
-            {
-                sensor_msgs::Image img;
-                img.header = image_msg->header;
-                img.height = image_msg->height;
-                img.width = image_msg->width;
-                img.is_bigendian = image_msg->is_bigendian;
-                img.step = image_msg->step;
-                img.data = image_msg->data;
-                img.encoding = "mono8";
-                ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8);
-            }
-            else
-                ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::MONO8);
+
+            ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::MONO8);
 
             //depth has encoding TYPE_16UC1
             cv_bridge::CvImageConstPtr depth_ptr;
@@ -459,7 +445,7 @@ void process()
                     //printf("u %f, v %f \n", p_2d_uv.x, p_2d_uv.y);
                 }
                 // ROW: 480 y  COL: 640 x
-                int count_ = 0;
+                //debug: int count_ = 0;
                 for (int i = L_BOUNDARY; i < COL - R_BOUNDARY; i += PCL_DIST)
                 {
                     for (int j = U_BOUNDARY; j < ROW - D_BOUNDARY; j += PCL_DIST)
@@ -470,12 +456,12 @@ void process()
                         float depth_val = ((float)depth.at<unsigned short>(j, i)) / 1000.0;
                         if (depth_val > PCL_MIN_DIST && depth_val < PCL_MAX_DIST)
                         {
-                            ++count_;
+                            //debug: ++count_;
                             point_3d_depth.push_back(cv::Point3f(b.x() * depth_val, b.y() * depth_val, depth_val));
                         }
                     }
                 }
-                ROS_WARN("Depth points count: %d", count_);
+                //debug: ROS_WARN("Depth points count: %d", count_);
 
                 // 通过frame_index标记对应帧
                 // add sparse depth img to this class
@@ -545,12 +531,10 @@ int main(int argc, char **argv)
     cameraposevisual.setScale(camera_visual_size);
     cameraposevisual.setLineWidth(camera_visual_size / 10.0);
 
+
     LOOP_CLOSURE = fsSettings["loop_closure"];
     std::string IMAGE_TOPIC,DEPTH_TOPIC;
     int LOAD_PREVIOUS_POSE_GRAPH;
-
-    octree.setInputCloud(cloud);
-    octree.addPointsFromInputCloud();
     // prepare for loop closure (load vocabulary, set topic, etc)
     if (LOOP_CLOSURE)
     {
