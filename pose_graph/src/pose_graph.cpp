@@ -1,5 +1,6 @@
 #include "pose_graph.h"
-extern octomap::OcTree* octree;
+extern octomap::ColorOcTree* octree;
+extern octomap::ColorOcTree* temp_octree;
 
 PoseGraph::PoseGraph()
 {
@@ -157,14 +158,16 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     path[sequence_cnt].poses.push_back(pose_stamped);
     path[sequence_cnt].header = pose_stamped.header;
 
+
     m_densepcl.lock();
     for (auto &pcl : cur_kf->point_3d_depth)
     {
-        Vector3d pts_i(pcl.x , pcl.y, pcl.z);
+        Vector3d pts_i(pcl.first.x , pcl.first.y, pcl.first.z);
         Vector3d w_pts_i = R * (qi_d * pts_i + ti_d) + P;
         
 	//octree.updateNode(octomap::point3d(w_pts_i(0), w_pts_i(1), w_pts_i(2)), true);
         (*octree).insertRay(octomap::point3d(P(0), P(1), P(2)), octomap::point3d(w_pts_i(0), w_pts_i(1), w_pts_i(2)));
+        (*octree).setNodeColor(w_pts_i(0), w_pts_i(1), w_pts_i(2), pcl.second[0], pcl.second[1], pcl.second[2]);
     }
     (*octree).prune();
     m_densepcl.unlock();
@@ -233,13 +236,14 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     publish();
     octomap_msgs::Octomap map;
     map.header = pose_stamped.header;
+    // bug fix: should add lock here to prevent conflict with updatePath
+    m_densepcl.lock();
     if (octomap_msgs::fullMapToMsg(*octree, map))
         pub_octomap.publish(map);
     else
         ROS_ERROR("Error serializing OctoMap");
-
+    m_densepcl.unlock();
 	m_keyframelist.unlock();
-
 }
 
 
@@ -625,10 +629,9 @@ void PoseGraph::optimize4DoF()
 
 void PoseGraph::updatePath()
 {
-
     // store info for updating dense pcl without locking keyframe list
     // which may take much time
-    vector<vector<cv::Point3f>> tmp_keyframelist;
+    vector<vector<std::pair<cv::Point3f, cv::Vec3b>>> tmp_keyframelist;
     queue<pair<Matrix3d, Vector3d>> tmp_RTlist;
     std_msgs::Header tmp_header;
 
@@ -756,13 +759,13 @@ void PoseGraph::updatePath()
     m_keyframelist.unlock();
 
     // throw the costy part beyond m_keyframelist
-    
+
+    octomap::ColorOcTree* temp_ptr;
 
     double start,stop,durationTime;
     start = clock();
 
-    m_densepcl.lock();
-    (*octree).clear();
+    // insert all points in temp_octree, do ptr switch later.
     for (auto &pcl_vect : tmp_keyframelist)
     {
         Vector3d P;
@@ -771,16 +774,24 @@ void PoseGraph::updatePath()
         P = tmp_RTlist.front().second;
         for (auto &pcl : pcl_vect)
         {
-            Vector3d pts_i(pcl.x, pcl.y, pcl.z);
+            Vector3d pts_i(pcl.first.x, pcl.first.y, pcl.first.z);
             Vector3d w_pts_i = R * (qi_d * pts_i + ti_d) + P;
             //octree.updateNode(octomap::point3d(w_pts_i(0), w_pts_i(1), w_pts_i(2)), true);
-            (*octree).insertRay(octomap::point3d(P(0), P(1), P(2)), octomap::point3d(w_pts_i(0), w_pts_i(1), w_pts_i(2)));
+            (*temp_octree).insertRay(octomap::point3d(P(0), P(1), P(2)), octomap::point3d(w_pts_i(0), w_pts_i(1), w_pts_i(2)));
+            (*temp_octree).setNodeColor(w_pts_i(0), w_pts_i(1), w_pts_i(2), pcl.second[0], pcl.second[1], pcl.second[2]);
         }
         //(*octree).prune();
         tmp_RTlist.pop();
     }
-    (*octree).prune();
+    (*temp_octree).prune();
+
+    // do some pointer exchange work to save time
+    m_densepcl.lock();
+    temp_ptr = octree;
+    octree = temp_octree;
+    temp_octree = temp_ptr;
     m_densepcl.unlock();
+    (*temp_octree).clear();
 
     stop = clock();
     durationTime = ((double)(stop-start))/CLOCKS_PER_SEC;

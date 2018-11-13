@@ -81,7 +81,8 @@ CameraPoseVisualization cameraposevisual(1, 0, 0, 1);
 Eigen::Vector3d last_t(-100, -100, -100);
 double last_image_time = -1;
 
-octomap::OcTree* octree = new octomap::OcTree(0.1);
+octomap::ColorOcTree* octree = new octomap::ColorOcTree(0.03);
+octomap::ColorOcTree* temp_octree = new octomap::ColorOcTree(0.03);
 
 //not used in my case, just ignore sequence 1-5
 void new_sequence()
@@ -386,9 +387,10 @@ void process()
                 skip_cnt = 0;
             }
 
-            cv_bridge::CvImageConstPtr ptr;
+            cv_bridge::CvImageConstPtr ptr, color_ptr;
 
             ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::MONO8);
+            color_ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::RGB8);
 
             //depth has encoding TYPE_16UC1
             cv_bridge::CvImageConstPtr depth_ptr;
@@ -407,6 +409,8 @@ void process()
 
             cv::Mat image = ptr->image;
             cv::Mat depth = depth_ptr->image;
+            cv::Mat color = color_ptr->image;
+
             // build keyframe
             Vector3d T = Vector3d(pose_msg->pose.pose.position.x,
                                   pose_msg->pose.pose.position.y,
@@ -420,7 +424,7 @@ void process()
                 vector<cv::Point3f> point_3d;
                 vector<cv::Point2f> point_2d_uv;
                 vector<cv::Point2f> point_2d_normal;
-                vector<cv::Point3f> point_3d_depth;
+                vector<std::pair<cv::Point3f, cv::Vec3b>> point_3d_depth;
                 vector<double> point_id;
 
                 for (unsigned int i = 0; i < point_msg->points.size(); i++)
@@ -453,11 +457,17 @@ void process()
                         Eigen::Vector2d a(i, j);
                         Eigen::Vector3d b;
                         depth_m_camera->liftProjective(a, b);
+
+                        cv::Vec3b color_vector;
                         float depth_val = ((float)depth.at<unsigned short>(j, i)) / 1000.0;
+
+
                         if (depth_val > PCL_MIN_DIST && depth_val < PCL_MAX_DIST)
                         {
                             //debug: ++count_;
-                            point_3d_depth.push_back(cv::Point3f(b.x() * depth_val, b.y() * depth_val, depth_val));
+                            color_vector = color.at<cv::Vec3b>(j, i);
+                            //ROS_ERROR("red:%d         green:%d          blue:%d", color_vector[0], color_vector[1], color_vector[2]);
+                            point_3d_depth.push_back(make_pair(cv::Point3f(b.x() * depth_val, b.y() * depth_val, depth_val), color_vector));
                         }
                     }
                 }

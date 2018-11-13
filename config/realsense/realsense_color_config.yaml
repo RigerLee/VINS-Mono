@@ -7,7 +7,7 @@ depth_topic: "/zr300_node/depth/image_raw"
 output_path: "/home/riger/output/"
 
 #pointcloud settings
-pcl_dist: 10
+pcl_dist: 5
 u_boundary: 10
 d_boundary: 10
 l_boundary: 40
