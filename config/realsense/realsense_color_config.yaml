@@ -1,9 +1,9 @@
 %YAML:1.0
 
 #common parameters
-imu_topic: "/zr300_node/imu"
-image_topic: "/zr300_node/color/image_raw"
-depth_topic: "/zr300_node/depth/image_raw"
+imu_topic: "/camera/imu"
+image_topic: "/camera/color/image_raw"
+depth_topic: "/camera/aligned_depth_to_color/image_raw"
 output_path: "/home/riger/output/"
 
 #pointcloud settings
@@ -23,18 +23,18 @@ image_height: 480
   #TODO modify distortion
 
 distortion_parameters:
-   k1: 6.422684341669083e-02
-   k2: -1.2272646278142929e-01
-   p1: -6.812019273638725e-04
-   p2: -1.99805642478168e-03
+   k1: 1.25323e-01
+   k2: -2.51452e-01
+   p1: 7.12e-04
+   p2: 6.217e-03
 projection_parameters:
-   fx: 6.108115234375e+02
-   fy: 6.110562744140625e+02
-   cx: 3.155500793457031e+02
-   cy: 2.4687928771972656e+02
+   fx: 6.165911254882812e+02
+   fy: 6.166796264648438e+02
+   cx: 3.242193603515625e+02
+   cy: 2.3942701721191406e+02
 
 # Extrinsic parameter between IMU and Camera.
-estimate_extrinsic: 0   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
+estimate_extrinsic: 1   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
                         # 1  Have an initial guess about extrinsic parameters. We will optimize around your initial guess.
                         # 2  Don't know anything about extrinsic parameters. You don't need to give R,T. We will try to calibrate it. Do some rotation movement at beginning.
 #If you choose 0 or 1, you should write down the following matrix.
@@ -43,15 +43,15 @@ extrinsicRotation: !!opencv-matrix
    rows: 3
    cols: 3
    dt: d
-   data: [ 0.9999871376671051,  0.004973726388241054,  0.0009932503032817252,
-           -0.004978295423181007,  0.9999767881620737,  0.004651850356872469,
-           -0.00097009021724254,  -0.004656735216663503,  0.999988686807052]
+   data: [ -0.0008351,  0.0047513,  0.9999884,
+           -0.9999681,  0.0079379, -0.0008728,
+           -0.0079419, -0.9999572,  0.0047446 ]
 #Translation from camera frame to imu frame, imu^T_cam
 extrinsicTranslation: !!opencv-matrix
    rows: 3
    cols: 1
    dt: d
-   data: [0.0950048, 0.000354953, 0.00288419]
+   data: [2.40089e-05, 0.0149195, 0.000435395]
 
 #feature traker paprameters
 max_cnt: 150           # max feature number in feature tracking
@@ -68,11 +68,11 @@ max_num_iterations: 8   # max solver itrations, to guarantee real time
 keyframe_parallax: 10.0 # keyframe selection threshold (pixel)
 
 #imu parameters       The more accurate parameters you provide, the better performance
-acc_n: 0.0188 #0.1          # accelerometer measurement noise standard deviation. #0.2
-gyr_n: 7.309e-4 #0.01         # gyroscope measurement noise standard deviation.     #0.05
-acc_w: 1.2589e-2 #0.0002         # accelerometer bias random work noise standard deviation.  #0.02
-gyr_w: 1.413e-2 #2.0e-5       # gyroscope bias random work noise standard deviation.     #4.0e-5
-g_norm: 9.81       # gravity magnitude
+acc_n: 0.2          # accelerometer measurement noise standard deviation. #0.2
+gyr_n: 0.05         # gyroscope measurement noise standard deviation.     #0.05
+acc_w: 0.01         # accelerometer bias random work noise standard deviation.  #0.02
+gyr_w: 0.0005       # gyroscope bias random work noise standard deviation.     #4.0e-5
+g_norm: 9.805       # gravity magnitude
 
 #loop closure parameters
 loop_closure: 1                    # start loop closure

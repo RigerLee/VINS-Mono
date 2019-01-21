@@ -191,15 +191,16 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
                     velocity_x_of_point.values.push_back(pts_velocity[j].x);
                     velocity_y_of_point.values.push_back(pts_velocity[j].y);
 
-                    //int ff = (int)show_depth.at<unsigned short>(floor(cur_pts[j].y), floor(cur_pts[j].x));
-                    //int cf = (int)show_depth.at<unsigned short>(floor(cur_pts[j].y), ceil(cur_pts[j].x));
-                    //int fc = (int)show_depth.at<unsigned short>(ceil(cur_pts[j].y), floor(cur_pts[j].x));
-                    //int cc = (int)show_depth.at<unsigned short>(ceil(cur_pts[j].y), ceil(cur_pts[j].x));
-                    //int count = ((int)(ff > 0) + (int)(cf > 0) + (int)(fc > 0) + (int)(cc > 0));
-                    //int avg_depth = count > 0? (ff + cf + fc + cc) / count:0;
+                    int ff = (int)show_depth.at<unsigned short>(floor(cur_pts[j].y), floor(cur_pts[j].x));
+                    int cf = (int)show_depth.at<unsigned short>(floor(cur_pts[j].y), ceil(cur_pts[j].x));
+                    int fc = (int)show_depth.at<unsigned short>(ceil(cur_pts[j].y), floor(cur_pts[j].x));
+                    int cc = (int)show_depth.at<unsigned short>(ceil(cur_pts[j].y), ceil(cur_pts[j].x));
+                    int count = ((int)(ff > 0) + (int)(cf > 0) + (int)(fc > 0) + (int)(cc > 0));
+                    int avg_depth = count > 0 ? (ff + cf + fc + cc) / count:0;
                     //nearest neighbor....fastest  may be changed
                     // show_depth: 480*640   y:[0,480]   x:[0,640]
-                    depth_of_point.values.push_back((int)show_depth.at<unsigned short>(round(cur_pts[j].y), round(cur_pts[j].x)));
+                    //depth_of_point.values.push_back((int)show_depth.at<unsigned short>(round(cur_pts[j].y), round(cur_pts[j].x)));
+                    depth_of_point.values.push_back(avg_depth);
                     //debug use: print depth pixels
                     //test.push_back((int)show_depth.at<unsigned short>(round(cur_pts[j].y),round(cur_pts[j].x)));
                 }

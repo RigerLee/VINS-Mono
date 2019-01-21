@@ -59,7 +59,7 @@ int LOOP_CLOSURE;
 int FAST_RELOCALIZATION;
 
 
-camodocal::CameraPtr m_camera, depth_m_camera;
+camodocal::CameraPtr m_camera;
 Eigen::Vector3d tic;
 Eigen::Matrix3d qic;
 
@@ -461,7 +461,8 @@ void process()
                     {
                         Eigen::Vector2d a(i, j);
                         Eigen::Vector3d b;
-                        depth_m_camera->liftProjective(a, b);
+						//depth is aligned
+                        m_camera->liftProjective(a, b);
                         float depth_val = ((float)depth.at<unsigned short>(j, i)) / 1000.0;
                         if (depth_val > PCL_MIN_DIST && depth_val < PCL_MAX_DIST)
                         {
@@ -526,12 +527,9 @@ int main(int argc, char **argv)
     n.getParam("skip_cnt", SKIP_CNT);
     n.getParam("skip_dis", SKIP_DIS);
     std::string config_file;
-    std::string depth_config_file;
     n.getParam("config_file", config_file);
-    n.getParam("depth_config_file", depth_config_file);
     cv::FileStorage fsSettings(config_file, cv::FileStorage::READ);
-    cv::FileStorage fsSettings_depth(depth_config_file, cv::FileStorage::READ);
-    if(!fsSettings.isOpened() || !fsSettings_depth.isOpened())
+    if(!fsSettings.isOpened())
     {
         std::cerr << "ERROR: Wrong path to settings" << std::endl;
     }
@@ -564,7 +562,6 @@ int main(int argc, char **argv)
         BRIEF_PATTERN_FILE = pkg_path + "/../support_files/brief_pattern.yml";
         cout << "BRIEF_PATTERN_FILE" << BRIEF_PATTERN_FILE << endl;
         m_camera = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(config_file.c_str());
-        depth_m_camera = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(depth_config_file.c_str());
 
         fsSettings["image_topic"] >> IMAGE_TOPIC;
         fsSettings["depth_topic"] >> DEPTH_TOPIC;
@@ -573,8 +570,8 @@ int main(int argc, char **argv)
         fsSettings["save_image"] >> DEBUG_IMAGE;
 
         cv::Mat cv_qid, cv_tid;
-        fsSettings_depth["extrinsicRotation"] >> cv_qid;
-        fsSettings_depth["extrinsicTranslation"] >> cv_tid;
+        fsSettings["extrinsicRotation"] >> cv_qid;
+        fsSettings["extrinsicTranslation"] >> cv_tid;
         cv::cv2eigen(cv_qid, qi_d);
         cv::cv2eigen(cv_tid, ti_d);
 
@@ -585,7 +582,6 @@ int main(int argc, char **argv)
         std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
         fout.close();
         fsSettings.release();
-        fsSettings_depth.release();
         //not used
         if (LOAD_PREVIOUS_POSE_GRAPH)
         {
@@ -604,7 +600,6 @@ int main(int argc, char **argv)
     }
 
     fsSettings.release();
-    fsSettings_depth.release();
     // publish camera pose by imu propagate and odometry (Ps and Rs of curr frame)
     // not important
     ros::Subscriber sub_imu_forward = n.subscribe("/vins_estimator/imu_propagate", 2000, imu_forward_callback);

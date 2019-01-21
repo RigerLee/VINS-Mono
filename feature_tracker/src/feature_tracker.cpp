@@ -28,6 +28,25 @@ void reduceVector(vector<int> &v, vector<uchar> status)
     v.resize(j);
 }
 
+void reduceVector(vector<cv::Point3f> &v, vector<uchar> status)
+{
+    int j = 0;
+    for (int i = 0; i < int(v.size()); i++)
+        if (status[i])
+            v[j++] = v[i];
+    v.resize(j);
+}
+
+inline void computeCentroid(cv::Mat &P, cv::Mat &Pr, cv::Mat &C)
+{
+    cv::reduce(P,C,1,CV_REDUCE_SUM);
+    C = C/P.cols;
+
+    for(int i=0; i<P.cols; i++)
+    {
+        Pr.col(i) = P.col(i) - C;
+    }
+}
 
 FeatureTracker::FeatureTracker()
 {
@@ -137,10 +156,15 @@ void FeatureTracker::readImage(const cv::Mat &_img, const cv::Mat &_depth, doubl
         //对prev_pts和forw_pts做ransac剔除outlier.
         rejectWithF();
         ROS_DEBUG("set mask begins");
+        rejectWithSim3();
+
         TicToc t_m;
         //有点类似non-max suppression
         setMask();
         ROS_DEBUG("set mask costs %fms", t_m.toc());
+
+
+
 
         ROS_DEBUG("detect feature begins");
         TicToc t_t;
@@ -209,6 +233,282 @@ void FeatureTracker::rejectWithF()
         reduceVector(track_cnt, status);
         ROS_DEBUG("FM ransac: %d -> %lu: %f", size_a, forw_pts.size(), 1.0 * forw_pts.size() / size_a);
         ROS_DEBUG("FM ransac costs: %fms", t_f.toc());
+    }
+}
+
+void FeatureTracker::rejectWithSim3()
+{
+    if (forw_pts.size() < 8)
+    {
+        ROS_ERROR("No enough points");
+        return;
+    }
+    // Set rand seed
+    srand(time(NULL));
+    // iterate at most 100 times, if Inliers > 150 stop
+    int mRansacMaxIts = 200;
+    int mRansacMinInliers = 120;
+    unsigned long N = forw_pts.size();
+    vector<uchar> status(N, 1);
+    mvX3Dc1.resize(N);
+    mvX3Dc2.resize(N);
+
+
+    for (size_t i = 0; i < N; i++)
+    {
+        Eigen::Vector2d a(cur_pts[i].x, cur_pts[i].y);
+        Eigen::Vector3d b;
+        m_camera->liftProjective(a, b);
+        int ff = (int)cur_depth.at<unsigned short>(floor(cur_pts[i].y), floor(cur_pts[i].x));
+        int cf = (int)cur_depth.at<unsigned short>(floor(cur_pts[i].y), ceil(cur_pts[i].x));
+        int fc = (int)cur_depth.at<unsigned short>(ceil(cur_pts[i].y), floor(cur_pts[i].x));
+        int cc = (int)cur_depth.at<unsigned short>(ceil(cur_pts[i].y), ceil(cur_pts[i].x));
+        float count = ((float)(ff > 0) + (float)(cf > 0) + (float)(fc > 0) + (float)(cc > 0));
+        float depth_val = count > 0 ? (ff + cf + fc + cc) / count / 1000:0;
+        mvX3Dc1[i] = cv::Point3f (b.x() / b.z() * depth_val, b.y() / b.z() * depth_val, depth_val);
+        // Skip points with depth=0
+        if (depth_val == 0.0)
+            status[i] = 0;
+
+        a = Eigen::Vector2d(forw_pts[i].x, forw_pts[i].y);
+        m_camera->liftProjective(a, b);
+        ff = (int)forw_depth.at<unsigned short>(floor(forw_pts[i].y), floor(forw_pts[i].x));
+        cf = (int)forw_depth.at<unsigned short>(floor(forw_pts[i].y), ceil(forw_pts[i].x));
+        fc = (int)forw_depth.at<unsigned short>(ceil(forw_pts[i].y), floor(forw_pts[i].x));
+        cc = (int)forw_depth.at<unsigned short>(ceil(forw_pts[i].y), ceil(forw_pts[i].x));
+        count = ((float)(ff > 0) + (float)(cf > 0) + (float)(fc > 0) + (float)(cc > 0));
+        depth_val = count > 0 ? (ff + cf + fc + cc) / count / 1000:0;
+        mvX3Dc2[i] = cv::Point3f (b.x() / b.z() * depth_val, b.y() / b.z() * depth_val, depth_val);
+        // Skip points with depth=0
+        if (depth_val == 0.0)
+            status[i] = 0;
+    }
+
+    reduceVector(prev_pts, status);
+    reduceVector(cur_pts, status);
+    reduceVector(forw_pts, status);
+    reduceVector(cur_un_pts, status);
+    reduceVector(ids, status);
+    reduceVector(track_cnt, status);
+    reduceVector(mvX3Dc1, status);
+    reduceVector(mvX3Dc2, status);
+    //ROS_ERROR("Points before depth filter: %d      After depth filter: %d", N, forw_pts.size());
+    N = forw_pts.size();
+    if (forw_pts.size() < 8)
+    {
+        ROS_ERROR("No enough depth");
+        return;
+    }
+
+    // mvAllIndices[i] = i
+    vector<size_t> mvAllIndices(N);
+    vector<size_t> vAvailableIndices;
+
+    for (size_t i = 0; i < N; i++)
+        // Setup this to perform random
+        mvAllIndices[i] = i;
+    vector<uchar> vbInliers(N, 0);
+    vector<uchar> vbBestInliers(N, 0);
+
+
+    cv::Mat P3Dc1i(3,3,CV_32F);
+    cv::Mat P3Dc2i(3,3,CV_32F);
+
+    int mnBestInliers = 0;
+    int mnIterations = 0;
+    while(mnIterations<mRansacMaxIts)
+    {
+
+        vAvailableIndices = mvAllIndices;
+        // Get min set of points
+        // 步骤1：任意取三组点算Sim矩阵
+        for(short i = 0; i < 3; ++i)
+        {
+            unsigned long randi = rand()%(vAvailableIndices.size());
+            unsigned long idx = vAvailableIndices[randi];
+
+            // P3Dc1i和P3Dc2i中点的排列顺序：
+            // x1 x2 x3 ...
+            // y1 y2 y3 ...
+            // z1 z2 z3 ...
+            cv::Mat(mvX3Dc1[idx]).col(0).copyTo(P3Dc1i.col(i));
+            cv::Mat(mvX3Dc2[idx]).col(0).copyTo(P3Dc2i.col(i));
+
+            vAvailableIndices[randi] = vAvailableIndices.back();
+            vAvailableIndices.pop_back();
+        }
+        cv::Mat mR12i(3,3,CV_32F);
+        cv::Mat mt12i(3,1,CV_32F);
+        // 步骤2：根据两组匹配的3D点，计算之间的Sim3变换
+        if (computeSim3(P3Dc1i, P3Dc2i, mR12i, mt12i))
+            mnIterations++;// 总的迭代次数，默认为最大为300
+        else
+            continue;
+
+        //cout<<"\n-------------------1---------------------"<<endl;
+        //cout<<mR12i.channels()<<" "<<CV_MAT_CN(mR12i.type())<<endl;
+        //cout<<mt12i.channels()<<" "<<CV_MAT_CN(mt12i.type())<<endl;
+        // 步骤3：通过投影误差进行inlier检测
+        //checkInliers(const vector<cv::Point3f> &mvX3Dc2, const vector<cv::Point2f> &mvP1im1, cv::Mat mR12i, cv::Mat mt12i, vector<uchar> &mvbInliersi)
+        int mnInliersi = checkInliers(mR12i, mt12i, vbInliers);
+        if(mnInliersi>=mnBestInliers)
+        {
+            vbBestInliers = vbInliers;
+            mnBestInliers = mnInliersi;
+
+            if(mnInliersi>mRansacMinInliers)// 只要计算得到一次合格的Sim变换，就直接返回
+                break;
+        }
+    }
+    ROS_ERROR("mnBestInliers: %d", mnBestInliers);
+    reduceVector(prev_pts, vbInliers);
+    reduceVector(cur_pts, vbInliers);
+    reduceVector(forw_pts, vbInliers);
+    reduceVector(cur_un_pts, vbInliers);
+    reduceVector(ids, vbInliers);
+    reduceVector(track_cnt, vbInliers);
+}
+
+bool FeatureTracker::computeSim3(cv::Mat &P1, cv::Mat &P2, cv::Mat &mR12i, cv::Mat &mt12i)
+{
+    // Custom implementation of:
+    // Horn 1987, Closed-form solution of absolute orientataion using unit quaternions
+
+    // Step 1: Centroid and relative coordinates
+    cv::Mat Pr1(P1.size(),P1.type()); // Relative coordinates to centroid (set 1)
+    cv::Mat Pr2(P2.size(),P2.type()); // Relative coordinates to centroid (set 2)
+    cv::Mat O1(3,1,Pr1.type()); // Centroid of P1
+    cv::Mat O2(3,1,Pr2.type()); // Centroid of P2
+
+    computeCentroid(P1,Pr1,O1);
+    computeCentroid(P2,Pr2,O2);
+
+    // Step 2: Compute M matrix
+
+    cv::Mat M = Pr2*Pr1.t();
+
+    // Step 3: Compute N matrix
+
+    double N11, N12, N13, N14, N22, N23, N24, N33, N34, N44;
+
+    cv::Mat N(4,4,P1.type());
+
+    N11 = M.at<float>(0,0)+M.at<float>(1,1)+M.at<float>(2,2);
+    N12 = M.at<float>(1,2)-M.at<float>(2,1);
+    N13 = M.at<float>(2,0)-M.at<float>(0,2);
+    N14 = M.at<float>(0,1)-M.at<float>(1,0);
+    N22 = M.at<float>(0,0)-M.at<float>(1,1)-M.at<float>(2,2);
+    N23 = M.at<float>(0,1)+M.at<float>(1,0);
+    N24 = M.at<float>(2,0)+M.at<float>(0,2);
+    N33 = -M.at<float>(0,0)+M.at<float>(1,1)-M.at<float>(2,2);
+    N34 = M.at<float>(1,2)+M.at<float>(2,1);
+    N44 = -M.at<float>(0,0)-M.at<float>(1,1)+M.at<float>(2,2);
+
+    N = (cv::Mat_<float>(4,4) << N11, N12, N13, N14,
+            N12, N22, N23, N24,
+            N13, N23, N33, N34,
+            N14, N24, N34, N44);
+
+
+    // Step 4: Eigenvector of the highest eigenvalue
+
+    cv::Mat eval, evec;
+
+    cv::eigen(N,eval,evec); //evec[0] is the quaternion of the desired rotation
+
+    cv::Mat vec(1,3,evec.type());
+    (evec.row(0).colRange(1,4)).copyTo(vec); //extract imaginary part of the quaternion (sin*axis)
+
+    // Rotation angle. sin is the norm of the imaginary part, cos is the real part
+    double ang=atan2(norm(vec),evec.at<float>(0,0));
+
+    vec = 2*ang*vec/norm(vec); //Angle-axis representation. quaternion angle is the half
+
+    mR12i.create(3,3,P1.type());
+
+    cv::Rodrigues(vec,mR12i); // computes the rotation matrix from angle-axis
+
+    // Step 5: Rotate set 2
+
+    cv::Mat P3 = mR12i*Pr2;
+
+    // Step 6: Scale
+
+    double ms12i = 0;
+    {
+        double nom = Pr1.dot(P3);
+        cv::Mat aux_P3(P3.size(),P3.type());
+        aux_P3=P3;
+        cv::pow(P3,2,aux_P3);
+        double den = 0;
+
+        for(int i=0; i<aux_P3.rows; i++)
+        {
+            for(int j=0; j<aux_P3.cols; j++)
+            {
+                den+=aux_P3.at<float>(i,j);
+            }
+        }
+
+        ms12i = nom/den;
+    }
+    // Step 6: Scale=1 pass
+
+    // Step 7: Translation
+
+    mt12i.create(1,3,P1.type());
+    mt12i = O1 - ms12i*mR12i*O2;
+
+    return abs(ms12i-1)<0.1;
+}
+
+
+int FeatureTracker::checkInliers(cv::Mat mR12i, cv::Mat mt12i, vector<uchar> &mvbInliersi)
+{
+    vector<cv::Point2f> vP2im1;
+    project(vP2im1, mR12i, mt12i);
+    //m_camera->projectPoints(mvX3Dc2, mR12i, mt12i, vP2im1);
+    //cout<<vP2im1[1]<<"  "<<vP1im1[1]<<endl;
+    //cout<<vP2im1[2]<<"  "<<vP1im1[2]<<endl;
+    //cout<<vP2im1[3]<<"  "<<vP1im1[3]<<endl;
+    //cout<<vP2im1[4]<<"  "<<vP1im1[4]<<endl;
+    //cout<<vP2im1[5]<<"  "<<vP1im1[5]<<endl;
+    double mvnMaxError = 4;
+    int mnInliersi=0;
+
+    for(size_t i=0; i<cur_pts.size(); i++)
+    {
+        cv::Point2f dist = cur_pts[i]-vP2im1[i];
+
+        const float err = dist.dot(dist);
+        //cout<<"ERROR: "<<err<<endl;
+        if(err<mvnMaxError)
+        {
+            mvbInliersi[i]=1;
+            mnInliersi++;
+        }
+    }
+    return mnInliersi;
+}
+
+void FeatureTracker::project(vector<cv::Point2f> &vP2D, cv::Mat mR12i, cv::Mat mt12i)
+{
+    const float &fx = 6.1659e+02;
+    const float &fy = 6.1668e+02;
+    const float &cx = 3.2422e+02;
+    const float &cy = 2.3943e+02;
+
+    vP2D.clear();
+    vP2D.reserve(mvX3Dc2.size());
+
+    for (size_t i=0, iend=mvX3Dc2.size(); i<iend; i++)
+    {
+        cv::Mat P3Dc = mR12i*cv::Mat(mvX3Dc2[i])+mt12i;
+        const float invz = 1/(P3Dc.at<float>(2));
+        const float x = P3Dc.at<float>(0)*invz;
+        const float y = P3Dc.at<float>(1)*invz;
+
+        vP2D.push_back(cv::Point2f(fx*x+cx, fy*y+cy));
     }
 }
 
