@@ -157,7 +157,7 @@ void FeatureTracker::readImage(const cv::Mat &_img, const cv::Mat &_depth, doubl
         rejectWithF();
         ROS_DEBUG("set mask begins");
         rejectWithSim3();
-
+        //rejectWithPnP();
         TicToc t_m;
         //有点类似non-max suppression
         setMask();
@@ -510,6 +510,96 @@ void FeatureTracker::project(vector<cv::Point2f> &vP2D, cv::Mat mR12i, cv::Mat m
 
         vP2D.push_back(cv::Point2f(fx*x+cx, fy*y+cy));
     }
+}
+
+void FeatureTracker::rejectWithPnP()
+{
+    if (forw_pts.size() < 8)
+    {
+        ROS_ERROR("No enough points");
+        return;
+    }
+    unsigned long N = forw_pts.size();
+    vector<uchar> status(N, 1);
+    mvX3Dc1.resize(N);
+    mvX3Dc2.resize(N);
+    //后面考虑是否从forw project到cur更合适?
+    for (size_t i = 0; i < N; i++)
+    {
+        Eigen::Vector2d a(cur_pts[i].x, cur_pts[i].y);
+        Eigen::Vector3d b;
+        m_camera->liftProjective(a, b);
+        int ff = (int)cur_depth.at<unsigned short>(floor(cur_pts[i].y), floor(cur_pts[i].x));
+        int cf = (int)cur_depth.at<unsigned short>(floor(cur_pts[i].y), ceil(cur_pts[i].x));
+        int fc = (int)cur_depth.at<unsigned short>(ceil(cur_pts[i].y), floor(cur_pts[i].x));
+        int cc = (int)cur_depth.at<unsigned short>(ceil(cur_pts[i].y), ceil(cur_pts[i].x));
+        float count = ((float)(ff > 0) + (float)(cf > 0) + (float)(fc > 0) + (float)(cc > 0));
+        float depth_val = count > 0 ? (ff + cf + fc + cc) / count / 1000:0;
+        mvX3Dc1[i] = cv::Point3f (b.x() / b.z() * depth_val, b.y() / b.z() * depth_val, depth_val);
+        // Skip points with depth=0
+        if (depth_val == 0.0)
+            status[i] = 0;
+
+        a = Eigen::Vector2d(forw_pts[i].x, forw_pts[i].y);
+        m_camera->liftProjective(a, b);
+        ff = (int)forw_depth.at<unsigned short>(floor(forw_pts[i].y), floor(forw_pts[i].x));
+        cf = (int)forw_depth.at<unsigned short>(floor(forw_pts[i].y), ceil(forw_pts[i].x));
+        fc = (int)forw_depth.at<unsigned short>(ceil(forw_pts[i].y), floor(forw_pts[i].x));
+        cc = (int)forw_depth.at<unsigned short>(ceil(forw_pts[i].y), ceil(forw_pts[i].x));
+        count = ((float)(ff > 0) + (float)(cf > 0) + (float)(fc > 0) + (float)(cc > 0));
+        depth_val = count > 0 ? (ff + cf + fc + cc) / count / 1000:0;
+        mvX3Dc2[i] = cv::Point3f (b.x() / b.z() * depth_val, b.y() / b.z() * depth_val, depth_val);
+        // Skip points with depth=0
+        if (depth_val == 0.0)
+            status[i] = 0;
+
+    }
+
+    reduceVector(prev_pts, status);
+    reduceVector(cur_pts, status);
+    reduceVector(forw_pts, status);
+    reduceVector(cur_un_pts, status);
+    reduceVector(ids, status);
+    reduceVector(track_cnt, status);
+    reduceVector(mvX3Dc1, status);
+    //ROS_ERROR("Points before depth filter: %d      After depth filter: %d", N, forw_pts.size());
+    N = forw_pts.size();
+    if (forw_pts.size() < 8)
+    {
+        ROS_ERROR("No enough depth");
+        return;
+    }
+
+    cv::Mat intrinsics, distCoeffs;
+    //intrinsics = (cv::Mat_<double>(3,3) << FOCAL_LENGTH, 0, COL / 2.0, 0, FOCAL_LENGTH, ROW / 2.0, 0, 0, 1);
+    intrinsics = (cv::Mat_<double>(3,3) << 6.1659e+02, 0, 3.2422e+02, 0, 6.1668e+02, 2.3943e+02, 0, 0, 1);
+    distCoeffs = (cv::Mat_<double>(1,4) << 1.25323e-01, -2.51452e-01, 7.12e-04, 6.217e-03);
+
+    cv::Mat rvec, tvec;
+    vector<int> status1;
+
+    if (!cv::solvePnPRansac(mvX3Dc1, forw_pts, intrinsics, distCoeffs, rvec, tvec, false, 200, 1, 0.99, status1, cv::SOLVEPNP_ITERATIVE))
+        return;
+    ROS_ERROR("Points after PnP: %lu", status1.size());
+
+    //cv::Mat R_test;
+    //cv::Rodrigues(rvec, R_test);
+    //cout<<"R:"<<R_test<<endl;
+    //cout<<"t:"<<tvec<<endl;
+
+
+    vector<u_char> status2(N, 0);
+    for (int i = 0; i < status1.size(); i++)
+        status2[status1[i]] = 1;
+
+    reduceVector(prev_pts, status2);
+    reduceVector(cur_pts, status2);
+    reduceVector(forw_pts, status2);
+    reduceVector(cur_un_pts, status2);
+    reduceVector(ids, status2);
+    reduceVector(track_cnt, status2);
+    cout<<forw_pts.size()<<endl;
+
 }
 
 bool FeatureTracker::updateID(unsigned int i)

@@ -49,8 +49,8 @@ class FeatureTracker
     void rejectWithF();
 
     void undistortedPoints();
-
-
+	// use PnP to reject depth outliers
+	void rejectWithPnP();
     // use Sim3 to reject depth outliers
     void rejectWithSim3();
     bool computeSim3(cv::Mat &P1, cv::Mat &P2, cv::Mat &mR12i, cv::Mat &mt12i);
