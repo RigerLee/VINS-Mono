@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
     sensor_msgs
     cv_bridge
     camera_model
+    message_filters
     )
 
 find_package(OpenCV REQUIRED)
@@ -35,4 +36,3 @@ add_executable(feature_tracker
     )
 
 target_link_libraries(feature_tracker ${catkin_LIBRARIES} ${OpenCV_LIBS})
-target_link_libraries(feature_tracker /opt/ros/kinetic/lib/libmessage_filters.so)

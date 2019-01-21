@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
     camera_model
     cv_bridge
     roslib
+    message_filters
     )
 
 find_package(OpenCV)
@@ -43,6 +44,5 @@ add_executable(pose_graph
     src/ThirdParty/VocabularyBinary.cpp
     )
 
-target_link_libraries(pose_graph ${catkin_LIBRARIES}  ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
-target_link_libraries(pose_graph /opt/ros/kinetic/lib/libmessage_filters.so)
+target_link_libraries(pose_graph ${catkin_LIBRARIES}  ${OpenCV_LIBS} ${CERES_LIBRARIES})
 message("catkin_lib  ${catkin_LIBRARIES}")
