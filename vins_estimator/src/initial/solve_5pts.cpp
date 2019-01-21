@@ -1,5 +1,8 @@
 #include "solve_5pts.h"
-
+#include <sophus/se3.h>
+#include <sophus/so3.h>
+using Sophus::SE3;
+using Sophus::SO3;
 
 namespace cv {
     void decomposeEssentialMat( InputArray _E, OutputArray _R1, OutputArray _R2, OutputArray _t )
@@ -218,12 +221,133 @@ bool MotionEstimator::solveRelativeRT(const vector<pair<Vector3d, Vector3d>> &co
 
         Rotation = R.transpose();
         Translation = -R.transpose() * T;
-        if(inlier_cnt > 12)
+        if(inlier_cnt > 12) {
+            ROS_ERROR_STREAM("----------5points-----------");
+            ROS_ERROR_STREAM(ll.size());
+            ROS_ERROR_STREAM(inlier_cnt);
+            ROS_ERROR_STREAM(Rotation);
+            ROS_ERROR_STREAM(Translation);
             return true;
+        }
         else
             return false;
     }
     return false;
+}
+
+bool MotionEstimator::solveRelativeRT_PNP(const vector<pair<Vector3d, Vector3d>> &corres, Matrix3d &Rotation, Vector3d &Translation)
+{
+    vector<cv::Point3f> lll;
+    vector<cv::Point2f> rr;
+    for (int i = 0;  i< int(corres.size()); i++)
+    {
+        if (corres[i].first(2) >0 && corres[i].second(2) >0 ) {
+            lll.push_back(cv::Point3f(corres[i].first(0), corres[i].first(1), corres[i].first(2)));
+            rr.push_back(cv::Point2f(corres[i].second(0) / corres[i].second(2),
+                                     corres[i].second(1) / corres[i].second(2)));
+        }
+    }
+    cv::Mat rvec,tvec,inliersArr;
+    cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);
+
+    cv::solvePnPRansac(lll, rr, cameraMatrix, cv::Mat(), rvec, tvec, false, 100, 1.0/460, 0.99,
+                       inliersArr, cv::SOLVEPNP_ITERATIVE);//todo:shan maybe don't need 100times
+
+
+    Vector3d tran(tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0));
+    Matrix3d rota = SO3(rvec.at<double>(0, 0), rvec.at<double>(1, 0), rvec.at<double>(2, 0)).matrix();
+
+//	Vector2d tp1,residualV;
+//	Vector3d tp23d;
+//    for (int i = 0; i < int(lll.size()); i++) {
+//        tp1 = Vector2d(rr[i].x,rr[i].y);
+//        tp23d = Vector3d(lll[i].x,lll[i].y,lll[i].z);
+//
+//        tp23d = rota * tp23d + tran;
+//        Vector2d tp2(tp23d.x()/tp23d.z(),tp23d.y()/tp23d.z());
+//
+//        residualV = (tp2 - tp1);
+//        ROS_ERROR_STREAM(residualV.transpose());
+//    }
+    ROS_ERROR_STREAM("-----------pnp-----------");
+    ROS_ERROR_STREAM(lll.size());
+    ROS_ERROR_STREAM(inliersArr.rows);
+
+	//shan：经过验证是对的，需要转置
+    Rotation = rota.transpose();
+    Translation = -rota.transpose() * tran;
+
+	ROS_ERROR_STREAM(Rotation);
+	ROS_ERROR_STREAM(Translation);
+    return true;
+}
+
+bool MotionEstimator::solveRelativeRT_ICP (vector<pair<Vector3d, Vector3d>> &corres, Matrix3d &Rotation, Vector3d &Translation)
+{
+
+    for (int i = 0;  i< int(corres.size()); i++)
+    {
+        if (corres[i].first(2) <=0 && corres[i].second(2) <=0 ) {
+            corres.erase(corres.begin() + i);
+        }
+    }
+    //const vector<Point3f>& pts1, const vector<Point3f>& pts2, Mat& R, Mat& t
+    Vector3d p1, p2;     // center of mass
+    int N = corres.size();
+    for (int i = 0; i < N; i++) {
+        p1 += corres[i].first;
+        p2 += corres[i].second;
+    }
+    p1 /= N;
+    p2 /= N;
+    vector<Vector3d> q1(N), q2(N); // remove the center
+    for (int i = 0; i < N; i++) {
+        q1[i] = corres[i].first - p1;
+        q2[i] = corres[i].second - p2;
+    }
+
+    // compute q1*q2^T
+    Eigen::Matrix3d W = Eigen::Matrix3d::Zero();
+    for (int i = 0; i < N; i++) {
+        W += q1[i] * q2[i].transpose();
+    }
+    //cout<<"W="<<W<<endl;
+
+    // SVD on W
+    Eigen::JacobiSVD<Eigen::Matrix3d> svd(W, Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::Matrix3d U = svd.matrixU();
+    Eigen::Matrix3d V = svd.matrixV();
+
+    if (U.determinant() * V.determinant() < 0) {
+        for (int x = 0; x < 3; ++x) {
+            U(x, 2) *= -1;
+        }
+    }
+
+    //cout<<"U="<<U<<endl;
+    //cout<<"V="<<V<<endl;
+
+    Rotation = U * (V.transpose());
+    Translation = p1 - Rotation * p2;
+
+    //for calculate inliers
+
+//    Vector3d tp1, tp2,residualV;
+//    for (int i = 0; i < int(corres.size()); i++) {
+//        tp2 = corres[i].second;
+//        tp1 = corres[i].first;
+//        residualV = (Rotation * tp2 + Translation - tp1);
+//        //ROS_ERROR("%f,",(Rotation*tp2+Translation-tp1).norm());
+//        //ROS_ERROR_STREAM(residualV.transpose());
+//        if (residualV.norm()>0.1){
+//            corres.erase(corres.begin() + i);
+//        }
+//    }
+//        ROS_ERROR_STREAM(Translation.transpose());
+//        ROS_ERROR_STREAM(Rotation.eulerAngles(2,1,0).transpose());
+//        ROS_ERROR("-%d---------------",corres.size());
+    return true;//todo:0113shan
+
 }
 
 

@@ -1,7 +1,5 @@
 #include "pose_graph.h"
 
-
-
 PoseGraph::PoseGraph()
 {
     posegraph_visualization = new CameraPoseVisualization(1.0, 0.0, 1.0, 1.0);
@@ -357,7 +355,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     //first query; then add this frame into database!
     QueryResults ret;
     TicToc t_query;
-    db.query(keyframe->brief_descriptors, ret, 4, frame_index - 100);
+    db.query(keyframe->brief_descriptors, ret, 4, frame_index - 50);
     //printf("query time: %f", t_query.toc());
     //cout << "Searching for Image " << frame_index << ". " << ret << endl;
 
@@ -417,7 +415,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
         cv::waitKey(20);
     }
 */
-    if (find_loop && frame_index > 100)
+    if (find_loop && frame_index > 50)
     {
         int min_index = -1;
         for (unsigned int i = 0; i < ret.size(); i++)

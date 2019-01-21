@@ -67,7 +67,7 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
     // encodings in ros: http://docs.ros.org/diamondback/api/sensor_msgs/html/image__encodings_8cpp_source.html
     //color has encoding RGB8
     cv_bridge::CvImageConstPtr ptr;
-    if (color_msg->encoding == "8UC1")
+    if (color_msg->encoding == "8UC1")//shan:why 8UC1 need this operation? Find answer:https://github.com/ros-perception/vision_opencv/issues/175
     {
         sensor_msgs::Image img;
         img.header = color_msg->header;

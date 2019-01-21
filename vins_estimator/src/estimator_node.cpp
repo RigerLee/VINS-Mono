@@ -152,7 +152,7 @@ void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
     m_buf.lock();
     imu_buf.push(imu_msg);
     m_buf.unlock();
-    con.notify_one();
+    con.notify_one();//shan:this line still not very understand.
 
     last_imu_t = imu_msg->header.stamp.toSec();
 
@@ -172,7 +172,7 @@ void feature_callback(const sensor_msgs::PointCloudConstPtr &feature_msg)
 {
     if (!init_feature)
     {
-        //skip the first detected feature, which doesn't contain optical flow speed
+        //skip the first detected feature, which doesn't contain optical flow speed  //shan,seems duplicated with feature tracker
         init_feature = 1;
         return;
     }
@@ -312,7 +312,7 @@ void process()
                 //就是特征点id， 0.5 for fun??
                 int v = img_msg->channels[0].values[i] + 0.5;
                 //feature_id is the same as v
-                int feature_id = v / NUM_OF_CAM;
+                int feature_id = v / NUM_OF_CAM;//shan:how to guarantee correspoding features have same feature_id in multi cameras?
                 //always 0 in my case
                 int camera_id = v % NUM_OF_CAM;
                 double x = img_msg->points[i].x;
@@ -341,11 +341,11 @@ void process()
             pubOdometry(estimator, header);
             pubKeyPoses(estimator, header);
             pubCameraPose(estimator, header);
-            pubPointCloud(estimator, header);
-            pubTF(estimator, header);
-            pubKeyframe(estimator);
+            pubPointCloud(estimator, header);//todo:1221
+            pubTF(estimator, header);//todo:1221
+            pubKeyframe(estimator);//todo:1221
             if (relo_msg != NULL)
-                pubRelocalization(estimator);
+                pubRelocalization(estimator);//todo:1221
             //ROS_ERROR("end: %f, at %f", img_msg->header.stamp.toSec(), ros::Time::now().toSec());
         }
         m_estimator.unlock();

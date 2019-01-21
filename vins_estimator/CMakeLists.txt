@@ -17,9 +17,12 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(OpenCV REQUIRED)
 
-message(WARNING "OpenCV_VERSION: ${OpenCV_VERSION}")
+# message(WARNING "OpenCV_VERSION: ${OpenCV_VERSION}")
 
 find_package(Ceres REQUIRED)
+
+find_package( Sophus REQUIRED )
+include_directories( ${Sophus_INCLUDE_DIRS} )
 
 include_directories(${catkin_INCLUDE_DIRS} ${CERES_INCLUDE_DIRS})
 
@@ -51,6 +54,6 @@ add_executable(vins_estimator
     )
 
 
-target_link_libraries(vins_estimator ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
+target_link_libraries(vins_estimator ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${Sophus_LIBRARIES})
 
 

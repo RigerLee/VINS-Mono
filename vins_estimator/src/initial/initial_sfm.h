@@ -20,6 +20,7 @@ struct SFMFeature
     vector<pair<int,Vector2d>> observation;
     double position[3];
     double depth;
+	vector<pair<int,double>> observation_depth;
 };
 
 struct ReprojectionError3D
@@ -69,6 +70,9 @@ private:
 	void triangulateTwoFrames(int frame0, Eigen::Matrix<double, 3, 4> &Pose0, 
 							  int frame1, Eigen::Matrix<double, 3, 4> &Pose1,
 							  vector<SFMFeature> &sfm_f);
+	void triangulateTwoFramesWithDepth(int frame0, Eigen::Matrix<double, 3, 4> &Pose0,
+	                          int frame1, Eigen::Matrix<double, 3, 4> &Pose1,
+	                          vector<SFMFeature> &sfm_f);
 
 	int feature_num;
 };

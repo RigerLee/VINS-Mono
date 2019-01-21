@@ -22,7 +22,7 @@ class FeaturePerFrame
     {
         point.x() = _point(0);
         point.y() = _point(1);
-        point.z() = _point(2);
+        point.z() = _point(2);//shan:equal to 1.
         uv.x() = _point(3);
         uv.y() = _point(4);
         velocity.x() = _point(5);
@@ -40,7 +40,7 @@ class FeaturePerFrame
     MatrixXd A;
     VectorXd b;
     double dep_gradient;
-    double depth;
+    double depth;//shan add;
 };
 
 class FeaturePerId
@@ -54,13 +54,14 @@ class FeaturePerId
     bool is_outlier;
     bool is_margin;
     double estimated_depth;
+    double measured_depth; //shan add
     int solve_flag; // 0 haven't solve yet; 1 solve succ; 2 solve fail;
 
     Vector3d gt_p;
 
-    FeaturePerId(int _feature_id, int _start_frame)
+    FeaturePerId(int _feature_id, int _start_frame, double _measured_depth)
         : feature_id(_feature_id), start_frame(_start_frame),
-          used_num(0), estimated_depth(-1.0), solve_flag(0)
+          used_num(0), estimated_depth(-1.0), measured_depth(_measured_depth), solve_flag(0)
     {
     }
 
@@ -81,6 +82,7 @@ class FeatureManager
     bool addFeatureCheckParallax(int frame_count, const map<int, vector<pair<int, Eigen::Matrix<double, 8, 1>>>> &image, double td);
     void debugShow();
     vector<pair<Vector3d, Vector3d>> getCorresponding(int frame_count_l, int frame_count_r);
+    vector<pair<Vector3d, Vector3d>> getCorrespondingWithDepth(int frame_count_l, int frame_count_r);//shan add
 
     //void updateDepth(const VectorXd &x);
     void setDepth(const VectorXd &x);
@@ -88,6 +90,7 @@ class FeatureManager
     void clearDepth(const VectorXd &x);
     VectorXd getDepthVector();
     void triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]);
+    void triangulateWithDepth(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]);
     void removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P, Eigen::Matrix3d new_R, Eigen::Vector3d new_P);
     void removeBack();
     void removeFront(int frame_count);

@@ -54,7 +54,7 @@ void readParameters(ros::NodeHandle &n)
     SOLVER_TIME = fsSettings["max_solver_time"];
     NUM_ITERATIONS = fsSettings["max_num_iterations"];
     MIN_PARALLAX = fsSettings["keyframe_parallax"];
-    MIN_PARALLAX = MIN_PARALLAX / FOCAL_LENGTH;
+    MIN_PARALLAX = MIN_PARALLAX / FOCAL_LENGTH;//shan:why?
 
     std::string OUTPUT_PATH;
     fsSettings["output_path"] >> OUTPUT_PATH;

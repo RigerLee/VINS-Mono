@@ -20,7 +20,7 @@ class ImageFrame
         };
         map<int, vector<pair<int, Eigen::Matrix<double, 8, 1>> > > points;
         double t;
-        Matrix3d R;
+        Matrix3d R;// shan：将IMU下点的坐标变换到world下点的坐标
         Vector3d T;
         IntegrationBase *pre_integration;
         bool is_key_frame;

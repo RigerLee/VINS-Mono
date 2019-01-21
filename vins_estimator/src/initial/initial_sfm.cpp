@@ -109,6 +109,57 @@ void GlobalSFM::triangulateTwoFrames(int frame0, Eigen::Matrix<double, 3, 4> &Po
 	}
 }
 
+void GlobalSFM::triangulateTwoFramesWithDepth(int frame0, Eigen::Matrix<double, 3, 4> &Pose0,
+                                     int frame1, Eigen::Matrix<double, 3, 4> &Pose1,
+                                     vector<SFMFeature> &sfm_f)
+{
+	assert(frame0 != frame1);
+	Matrix3d Pose0_R = Pose0.block< 3,3 >(0,0);
+	Matrix3d Pose1_R = Pose1.block< 3,3 >(0,0);
+	Vector3d Pose0_t = Pose0.block< 3,1 >(0,3);
+	Vector3d Pose1_t = Pose1.block< 3,1 >(0,3);
+	for (int j = 0; j < feature_num; j++)
+	{
+		if (sfm_f[j].state == true)
+			continue;
+		bool has_0 = false, has_1 = false;
+		Vector3d point0;
+		Vector2d point1;
+		for (int k = 0; k < (int)sfm_f[j].observation.size(); k++)
+		{
+			if (sfm_f[j].observation[k].first == frame0)
+			{
+				point0 = Vector3d(sfm_f[j].observation[k].second.x()*sfm_f[j].observation_depth[k].second,sfm_f[j].observation[k].second.y()*sfm_f[j].observation_depth[k].second,sfm_f[j].observation_depth[k].second);
+				has_0 = true;
+			}
+			if (sfm_f[j].observation[k].first == frame1)
+			{
+				point1 = sfm_f[j].observation[k].second;
+				has_1 = true;
+			}
+		}
+		if (has_0 && has_1)
+		{
+			Vector2d residual;
+			Vector3d point_3d, point1_reprojected;
+			//triangulatePoint(Pose0, Pose1, point0, point1, point_3d);//todo 要改两个地方的三角化 Done
+			point_3d = Pose0_R.transpose()*point0 - Pose0_R.transpose()*Pose0_t;//shan add:this is point in world;
+			point1_reprojected = Pose1_R*point_3d+Pose1_t;
+
+			residual = point1 - Vector2d(point1_reprojected.x()/point1_reprojected.z(),point1_reprojected.y()/point1_reprojected.z());
+
+			//std::cout << "shan" << residual.transpose()<<"norm"<<residual.norm()*460<<endl;
+			if (residual.norm() < 1.0/460){
+				sfm_f[j].state = true;
+				sfm_f[j].position[0] = point_3d(0);
+				sfm_f[j].position[1] = point_3d(1);
+				sfm_f[j].position[2] = point_3d(2);
+			}
+			//cout << "trangulated : " << frame1 << "  3d point : "  << j << "  " << point_3d.transpose() << endl;
+		}
+	}
+}
+
 // 	 q w_R_cam t w_R_cam
 //  c_rotation cam_R_w 
 //  c_translation cam_R_w
@@ -172,11 +223,11 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 		}
 
 		// triangulate point based on the solve pnp result
-		triangulateTwoFrames(i, Pose[i], frame_num - 1, Pose[frame_num - 1], sfm_f);
+		triangulateTwoFramesWithDepth(i, Pose[i], frame_num - 1, Pose[frame_num - 1], sfm_f);
 	}
 	//3: triangulate l-----l+1 l+2 ... frame_num -2
 	for (int i = l + 1; i < frame_num - 1; i++)
-		triangulateTwoFrames(l, Pose[l], i, Pose[i], sfm_f);
+		triangulateTwoFramesWithDepth(l, Pose[l], i, Pose[i], sfm_f);
 	//4: solve pnp l-1; triangulate l-1 ----- l
 	//             l-2              l-2 ----- l
 	for (int i = l - 1; i >= 0; i--)
@@ -192,7 +243,7 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 		Pose[i].block<3, 3>(0, 0) = c_Rotation[i];
 		Pose[i].block<3, 1>(0, 3) = c_Translation[i];
 		//triangulate
-		triangulateTwoFrames(i, Pose[i], l, Pose[l], sfm_f);
+		triangulateTwoFramesWithDepth(i, Pose[i], l, Pose[l], sfm_f);
 	}
 	//5: triangulate all other points
 	for (int j = 0; j < feature_num; j++)
@@ -201,17 +252,38 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 			continue;
 		if ((int)sfm_f[j].observation.size() >= 2)
 		{
-			Vector2d point0, point1;
+			Vector3d point0;
+			Vector2d point1;
 			int frame_0 = sfm_f[j].observation[0].first;
-			point0 = sfm_f[j].observation[0].second;
+			point0 = Vector3d(sfm_f[j].observation[0].second.x()*sfm_f[j].observation_depth[0].second,sfm_f[j].observation[0].second.y()*sfm_f[j].observation_depth[0].second,sfm_f[j].observation_depth[0].second);
 			int frame_1 = sfm_f[j].observation.back().first;
 			point1 = sfm_f[j].observation.back().second;
 			Vector3d point_3d;
-			triangulatePoint(Pose[frame_0], Pose[frame_1], point0, point1, point_3d);
-			sfm_f[j].state = true;
-			sfm_f[j].position[0] = point_3d(0);
-			sfm_f[j].position[1] = point_3d(1);
-			sfm_f[j].position[2] = point_3d(2);
+			//triangulatePoint(Pose[frame_0], Pose[frame_1], point0, point1, point_3d);
+
+			//shan add
+			Matrix3d Pose0_R = Pose[frame_0].block< 3,3 >(0,0);
+			Matrix3d Pose1_R = Pose[frame_1].block< 3,3 >(0,0);
+			Vector3d Pose0_t = Pose[frame_0].block< 3,1 >(0,3);
+			Vector3d Pose1_t = Pose[frame_1].block< 3,1 >(0,3);
+
+
+			Vector2d residual;
+			Vector3d point1_reprojected;
+			//triangulatePoint(Pose0, Pose1, point0, point1, point_3d);//todo 要改两个地方的三角化
+			point_3d = Pose0_R.transpose()*point0 - Pose0_R.transpose()*Pose0_t;//shan add:this is point in world;
+			point1_reprojected = Pose1_R*point_3d+Pose1_t;
+
+			residual = point1 - Vector2d(point1_reprojected.x()/point1_reprojected.z(),point1_reprojected.y()/point1_reprojected.z());
+
+			//std::cout << "shan" << residual.transpose()<<"norm"<<residual.norm()*460<<endl;
+
+			if (residual.norm() < 1.0/460) {//shan add :if reprojection error small than 1.0
+				sfm_f[j].state = true;
+				sfm_f[j].position[0] = point_3d(0);
+				sfm_f[j].position[1] = point_3d(1);
+				sfm_f[j].position[2] = point_3d(2);
+			}
 			//cout << "trangulated : " << frame_0 << " " << frame_1 << "  3d point : "  << j << "  " << point_3d.transpose() << endl;
 		}		
 	}
@@ -249,7 +321,7 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 		{
 			problem.SetParameterBlockConstant(c_rotation[i]);
 		}
-		if (i == l || i == frame_num - 1)
+		if (i == l || i == frame_num - 1)//shan: why frame_num-1 also set t constant
 		{
 			problem.SetParameterBlockConstant(c_translation[i]);
 		}
