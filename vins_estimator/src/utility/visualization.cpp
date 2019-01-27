@@ -15,12 +15,16 @@ ros::Publisher pub_keyframe_pose;
 ros::Publisher pub_keyframe_point;
 ros::Publisher pub_extrinsic;
 
+ros::Publisher pub_delta_v;
+ros::Publisher pub_delta_p;
+ros::Publisher pub_delta_t;
+
 CameraPoseVisualization cameraposevisual(0, 1, 0, 1);
 CameraPoseVisualization keyframebasevisual(0.0, 0.0, 1.0, 1.0);
 static double sum_of_path = 0;
 static Vector3d last_path(0.0, 0.0, 0.0);
 vector<int> prev_pcd_id;
-
+double pubOdometry_current_time = -1;
 void registerPub(ros::NodeHandle &n)
 {
     pub_latest_odometry = n.advertise<nav_msgs::Odometry>("imu_propagate", 1000);
@@ -36,6 +40,9 @@ void registerPub(ros::NodeHandle &n)
     pub_keyframe_point = n.advertise<sensor_msgs::PointCloud>("keyframe_point", 1000);
     pub_extrinsic = n.advertise<nav_msgs::Odometry>("extrinsic", 1000);
     pub_relo_relative_pose=  n.advertise<nav_msgs::Odometry>("relo_relative_pose", 1000);
+    pub_delta_p = n.advertise<std_msgs::Float64>("delta_p", 1000);
+    pub_delta_v = n.advertise<std_msgs::Float64>("delta_v", 1000);
+    pub_delta_t = n.advertise<std_msgs::Float64>("delta_t", 1000);
 
     cameraposevisual.setScale(1);
     cameraposevisual.setLineWidth(0.05);
@@ -100,12 +107,18 @@ void printStatistics(const Estimator &estimator, double t)
     sum_of_path += (estimator.Ps[WINDOW_SIZE] - last_path).norm();
     last_path = estimator.Ps[WINDOW_SIZE];
     ROS_DEBUG("sum of path %f", sum_of_path);
-    if (ESTIMATE_TD)
-        ROS_INFO("td %f", estimator.td);
+//    if (ESTIMATE_TD)
+//        ROS_INFO("td %f", estimator.td);
 }
 
 void pubOdometry(const Estimator &estimator, const std_msgs::Header &header)
 {
+    if (pubOdometry_current_time < 0){
+        pubOdometry_current_time = header.stamp.toSec();
+    }
+    double dt = header.stamp.toSec() - pubOdometry_current_time;
+    pubOdometry_current_time = header.stamp.toSec();
+
     if (estimator.solver_flag == Estimator::SolverFlag::NON_LINEAR)
     {
         nav_msgs::Odometry odometry;
@@ -126,6 +139,22 @@ void pubOdometry(const Estimator &estimator, const std_msgs::Header &header)
         odometry.twist.twist.linear.z = estimator.Vs[WINDOW_SIZE].z();
         //"odometry"
         pub_odometry.publish(odometry);
+
+        Vector3d delta_p = estimator.Ps[WINDOW_SIZE] - estimator.Ps[WINDOW_SIZE-2];
+        Vector3d delta_v = estimator.Vs[WINDOW_SIZE] - estimator.Vs[WINDOW_SIZE-2];
+        //ROS_ERROR("delta_p_v:%f,%f,%f|%f,%f,%f",delta_p.x(),delta_p.y(),delta_p.z(),delta_v.x(),delta_v.y(),delta_v.z());
+        //ROS_ERROR("norm     :%f|%f",delta_p.norm(),delta_v.norm());
+        //ROS_ERROR("delta_t  :%f",dt);
+        std_msgs::Float64 rosp;
+        std_msgs::Float64 rosv;
+        std_msgs::Float64 rost;
+        rosp.data = delta_p.norm();
+        rosv.data = delta_v.norm();
+        rost.data = dt;
+        pub_delta_p.publish(rosp);
+        pub_delta_v.publish(rosv);
+        pub_delta_t.publish(rost);
+
 
         geometry_msgs::PoseStamped pose_stamped;
         pose_stamped.header = header;

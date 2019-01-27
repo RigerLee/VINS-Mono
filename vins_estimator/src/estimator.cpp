@@ -366,7 +366,7 @@ bool Estimator::initialStructure()
         frame_it->second.T = T_pnp;
     }
     // Rs Ps ric init
-    if (visualInitialAlign())
+    if (visualInitialAlignWithDepth())
         return true;
     else
     {
@@ -460,6 +460,83 @@ bool Estimator::visualInitialAlign()
     return true;
 }
 
+bool Estimator::visualInitialAlignWithDepth()
+{
+    TicToc t_g;
+    VectorXd x;
+    //solve scale
+    bool result = VisualIMUAlignment(all_image_frame, Bgs, g, x);
+    if(!result)
+    {
+        ROS_ERROR("solve g failed!");
+        return false;
+    }
+
+    // change state
+    for (int i = 0; i <= frame_count; i++)
+    {
+        Matrix3d Ri = all_image_frame[Headers[i].stamp.toSec()].R;
+        Vector3d Pi = all_image_frame[Headers[i].stamp.toSec()].T;
+        Ps[i] = Pi;
+        Rs[i] = Ri;
+        all_image_frame[Headers[i].stamp.toSec()].is_key_frame = true;
+    }
+
+    VectorXd dep = f_manager.getDepthVector();
+    for (int i = 0; i < dep.size(); i++)
+        dep[i] = -1;
+    f_manager.clearDepth(dep);
+
+    //triangulat on cam pose , no tic
+    Vector3d TIC_TMP[NUM_OF_CAM];
+    for(int i = 0; i < NUM_OF_CAM; i++)
+        TIC_TMP[i].setZero();
+    ric[0] = RIC[0];
+    f_manager.setRic(ric);
+    //f_manager.triangulate(Ps, &(TIC_TMP[0]), &(RIC[0]));
+    f_manager.triangulateWithDepth(Ps, &(TIC_TMP[0]), &(RIC[0]));
+
+
+
+    // do repropagate here
+    for (int i = 0; i <= WINDOW_SIZE; i++)
+    {
+        pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);
+    }
+    //ROS_ERROR("before %f | %f | %f\n", Ps[1].x(), Ps[1].y(), Ps[1].z());//shan add
+    for (int i = frame_count; i >= 0; i--)
+        Ps[i] = Ps[i] - Rs[i] * TIC[0] - (Ps[0] - Rs[0] * TIC[0]);
+    //ROS_ERROR("after  %f | %f | %f\n", Ps[1].x(), Ps[1].y(), Ps[1].z());//shan add
+    int kv = -1;
+    map<double, ImageFrame>::iterator frame_i;
+    for (frame_i = all_image_frame.begin(); frame_i != all_image_frame.end(); frame_i++)
+    {
+        if(frame_i->second.is_key_frame)
+        {
+            kv++;
+            Vs[kv] = frame_i->second.R * x.segment<3>(kv * 3);
+        }
+    }
+
+    Matrix3d R0 = Utility::g2R(g);
+    double yaw = Utility::R2ypr(R0 * Rs[0]).x();
+    R0 = Utility::ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
+    g = R0 * g;
+    //Matrix3d rot_diff = R0 * Rs[0].transpose();
+    Matrix3d rot_diff = R0;
+    for (int i = 0; i <= frame_count; i++)
+    {
+        Ps[i] = rot_diff * Ps[i];//shan 转到世界坐标系下？ 没明白
+        Rs[i] = rot_diff * Rs[i];
+        Vs[i] = rot_diff * Vs[i];
+        //ROS_ERROR("%d farme's t is %f | %f | %f\n",i, Ps[i].x(), Ps[i].y(), Ps[i].z());//shan add
+    }
+    ROS_DEBUG_STREAM("g0     " << g.transpose());
+    ROS_DEBUG_STREAM("my R0  " << Utility::R2ypr(Rs[0]).transpose());
+
+    return true;
+}
+
 bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l)
 {
     // find previous frame which contians enough correspondance and parallex with newest frame
@@ -474,8 +551,8 @@ bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l)
             double average_parallax;
             for (int j = 0; j < int(corres.size()); j++)
             {
-                Vector2d pts_0(corres[j].first(0), corres[j].first(1));
-                Vector2d pts_1(corres[j].second(0), corres[j].second(1));
+                Vector2d pts_0(corres[j].first(0)/corres[j].first(2), corres[j].first(1)/corres[j].first(2));
+                Vector2d pts_1(corres[j].second(0)/corres[j].second(2), corres[j].second(1)/corres[j].second(2));
                 double parallax = (pts_0 - pts_1).norm();
                 sum_parallax = sum_parallax + parallax;
 
@@ -483,7 +560,8 @@ bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l)
             average_parallax = 1.0 * sum_parallax / int(corres.size());
             if(average_parallax * 460 > 30 && m_estimator.solveRelativeRT_PNP(corres, relative_R, relative_T))//todo:0112 add relative_T scale here
             {
-                //m_estimator.solveRelativeRT(corres, relative_R, relative_T);
+//                Matrix3d relative_R2; Vector3d relative_T2;
+//                m_estimator.solveRelativeRT(corres, relative_R2, relative_T2);
                 l = i;
                 ROS_DEBUG("average_parallax %f choose l %d and newest frame to triangulate the whole structure", average_parallax * 460, l);
                 return true;
