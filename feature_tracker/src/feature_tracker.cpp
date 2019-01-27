@@ -154,12 +154,12 @@ void FeatureTracker::readImage(const cv::Mat &_img, const cv::Mat &_depth, doubl
     if (PUB_THIS_FRAME)
     {
         //对prev_pts和forw_pts做ransac剔除outlier.
-        rejectWithF();
-        ROS_DEBUG("set mask begins");
+        //rejectWithF();
         rejectWithSim3();
         //rejectWithPnP();
         TicToc t_m;
         //有点类似non-max suppression
+        ROS_DEBUG("set mask begins");
         setMask();
         ROS_DEBUG("set mask costs %fms", t_m.toc());
 
@@ -231,6 +231,8 @@ void FeatureTracker::rejectWithF()
         reduceVector(cur_un_pts, status);
         reduceVector(ids, status);
         reduceVector(track_cnt, status);
+        // in case of bad depth, mvX3Dc2 here may have many zeros
+        reduceVector(mvX3Dc2, status);
         ROS_DEBUG("FM ransac: %d -> %lu: %f", size_a, forw_pts.size(), 1.0 * forw_pts.size() / size_a);
         ROS_DEBUG("FM ransac costs: %fms", t_f.toc());
     }
@@ -243,17 +245,12 @@ void FeatureTracker::rejectWithSim3()
         ROS_ERROR("No enough points");
         return;
     }
-    // Set rand seed
-    srand(time(NULL));
-    // iterate at most 100 times, if Inliers > 150 stop
-    int mRansacMaxIts = 200;
-    int mRansacMinInliers = 120;
     unsigned long N = forw_pts.size();
     vector<uchar> status(N, 1);
     mvX3Dc1.resize(N);
     mvX3Dc2.resize(N);
 
-
+    double nonzero_depth_count = 0;
     for (size_t i = 0; i < N; i++)
     {
         Eigen::Vector2d a(cur_pts[i].x, cur_pts[i].y);
@@ -282,6 +279,16 @@ void FeatureTracker::rejectWithSim3()
         // Skip points with depth=0
         if (depth_val == 0.0)
             status[i] = 0;
+        if (status[i])
+            ++nonzero_depth_count;
+    }
+    // less than 30% have depth, we got a bad depth map.
+    // use rejectWithF instead.
+    if (nonzero_depth_count/forw_pts.size() < 0.3)
+    {
+        rejectWithF();
+        ROS_ERROR("Bad depth, call rejectWithF()");
+        return;
     }
 
     reduceVector(prev_pts, status);
@@ -291,6 +298,7 @@ void FeatureTracker::rejectWithSim3()
     reduceVector(ids, status);
     reduceVector(track_cnt, status);
     reduceVector(mvX3Dc1, status);
+    //after here, mvX3Dc2 contains no zeros.
     reduceVector(mvX3Dc2, status);
     //ROS_ERROR("Points before depth filter: %d      After depth filter: %d", N, forw_pts.size());
     N = forw_pts.size();
@@ -299,6 +307,11 @@ void FeatureTracker::rejectWithSim3()
         ROS_ERROR("No enough depth");
         return;
     }
+    // Set rand seed
+    srand(time(NULL));
+    // iterate at most 200 times, if Inliers > 0.7*all, stop
+    int mRansacMaxIts = 200;
+    int mRansacMinInliers = nonzero_depth_count * 0.8;
 
     // mvAllIndices[i] = i
     vector<size_t> mvAllIndices(N);
@@ -340,14 +353,12 @@ void FeatureTracker::rejectWithSim3()
         cv::Mat mR12i(3,3,CV_32F);
         cv::Mat mt12i(3,1,CV_32F);
         // 步骤2：根据两组匹配的3D点，计算之间的Sim3变换
+        // computeSim3 return R and t from forw to cur
         if (computeSim3(P3Dc1i, P3Dc2i, mR12i, mt12i))
-            mnIterations++;// 总的迭代次数，默认为最大为300
+            mnIterations++;// 总的迭代次数
         else
             continue;
 
-        //cout<<"\n-------------------1---------------------"<<endl;
-        //cout<<mR12i.channels()<<" "<<CV_MAT_CN(mR12i.type())<<endl;
-        //cout<<mt12i.channels()<<" "<<CV_MAT_CN(mt12i.type())<<endl;
         // 步骤3：通过投影误差进行inlier检测
         //checkInliers(const vector<cv::Point3f> &mvX3Dc2, const vector<cv::Point2f> &mvP1im1, cv::Mat mR12i, cv::Mat mt12i, vector<uchar> &mvbInliersi)
         int mnInliersi = checkInliers(mR12i, mt12i, vbInliers);
@@ -360,13 +371,13 @@ void FeatureTracker::rejectWithSim3()
                 break;
         }
     }
-    ROS_ERROR("mnBestInliers: %d", mnBestInliers);
-    reduceVector(prev_pts, vbInliers);
-    reduceVector(cur_pts, vbInliers);
-    reduceVector(forw_pts, vbInliers);
-    reduceVector(cur_un_pts, vbInliers);
-    reduceVector(ids, vbInliers);
-    reduceVector(track_cnt, vbInliers);
+    ROS_WARN("mnBestInliers: %d", mnBestInliers);
+    reduceVector(prev_pts, vbBestInliers);
+    reduceVector(cur_pts, vbBestInliers);
+    reduceVector(forw_pts, vbBestInliers);
+    reduceVector(cur_un_pts, vbBestInliers);
+    reduceVector(ids, vbBestInliers);
+    reduceVector(track_cnt, vbBestInliers);
 }
 
 bool FeatureTracker::computeSim3(cv::Mat &P1, cv::Mat &P2, cv::Mat &mR12i, cv::Mat &mt12i)
@@ -453,13 +464,14 @@ bool FeatureTracker::computeSim3(cv::Mat &P1, cv::Mat &P2, cv::Mat &mR12i, cv::M
         ms12i = nom/den;
     }
     // Step 6: Scale=1 pass
-
+    if (abs(ms12i-1)>0.1)
+        return false;
     // Step 7: Translation
 
     mt12i.create(1,3,P1.type());
     mt12i = O1 - ms12i*mR12i*O2;
 
-    return abs(ms12i-1)<0.1;
+    return true;
 }
 
 
@@ -468,12 +480,7 @@ int FeatureTracker::checkInliers(cv::Mat mR12i, cv::Mat mt12i, vector<uchar> &mv
     vector<cv::Point2f> vP2im1;
     project(vP2im1, mR12i, mt12i);
     //m_camera->projectPoints(mvX3Dc2, mR12i, mt12i, vP2im1);
-    //cout<<vP2im1[1]<<"  "<<vP1im1[1]<<endl;
-    //cout<<vP2im1[2]<<"  "<<vP1im1[2]<<endl;
-    //cout<<vP2im1[3]<<"  "<<vP1im1[3]<<endl;
-    //cout<<vP2im1[4]<<"  "<<vP1im1[4]<<endl;
-    //cout<<vP2im1[5]<<"  "<<vP1im1[5]<<endl;
-    double mvnMaxError = 4;
+    double mvnMaxError = 2;
     int mnInliersi=0;
 
     for(size_t i=0; i<cur_pts.size(); i++)
