@@ -155,8 +155,11 @@ vector<pair<Vector3d, Vector3d>> FeatureManager::getCorrespondingWithDepth(int f
 			int idx_r = frame_count_r - it.start_frame;
 
 			double depth_a = it.feature_per_frame[idx_l].depth;
+			if (depth_a < 0.1 || depth_a > 10)//shan max and min measurement
+			    continue;
 			double depth_b = it.feature_per_frame[idx_r].depth;
-
+            if (depth_b < 0.1 || depth_b > 10)//shan max and min measurement
+                continue;
 			a = it.feature_per_frame[idx_l].point;
 			b = it.feature_per_frame[idx_r].point;
 			a = a * depth_a;
@@ -308,8 +311,9 @@ void FeatureManager::triangulateWithDepth(Vector3d Ps[], Vector3d tic[], Matrix3
         {
             Eigen::Vector3d t0 = Ps[start_frame+i] + Rs[start_frame+i] * tic[0]; //shan: t0 -> twc0
             Eigen::Matrix3d R0 = Rs[start_frame+i] * ric[0];                     //shan: R0 -> Rwc0
-
-            Eigen::Vector3d point0(it_per_id.feature_per_frame[i].point * it_per_id.feature_per_frame[i].depth);// shan:应该不用考虑depth=0，因为那时残差肯定很大
+            if (it_per_id.feature_per_frame[i].depth < 0.1 || it_per_id.feature_per_frame[i].depth >10) //shan max and min measurement
+                continue;
+            Eigen::Vector3d point0(it_per_id.feature_per_frame[i].point * it_per_id.feature_per_frame[i].depth);// shan:应该不用考虑depth=0，因为那时残差肯定很大,更新：要考虑，万一两个都是0导致的参差为0，有可能？保险起见
 
             //转到参考帧
             Eigen::Vector3d t2r = Rr.transpose() * (t0 - tr); //shan: t -> tc0c1

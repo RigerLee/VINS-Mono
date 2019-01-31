@@ -61,12 +61,12 @@ void FeatureTracker::setMask()
 
 
     // prefer to keep features that are tracked for long time
-    vector<pair<int, pair<cv::Point2f, int>>> cnt_pts_id;
+    vector<pair<int, pair<pair<cv::Point2f, int>, cv::Point3f>>> cnt_pts_id;
 
     for (unsigned int i = 0; i < forw_pts.size(); i++)
-        cnt_pts_id.push_back(make_pair(track_cnt[i], make_pair(forw_pts[i], ids[i])));
+        cnt_pts_id.push_back(make_pair(track_cnt[i], make_pair(make_pair(forw_pts[i], ids[i]), mvX3Dc2[i])));
 
-    sort(cnt_pts_id.begin(), cnt_pts_id.end(), [](const pair<int, pair<cv::Point2f, int>> &a, const pair<int, pair<cv::Point2f, int>> &b)
+    sort(cnt_pts_id.begin(), cnt_pts_id.end(), [](const pair<int, pair<pair<cv::Point2f, int>, cv::Point3f>> &a, const pair<int, pair<pair<cv::Point2f, int>, cv::Point3f>> &b)
          {
             return a.first > b.first;
          });
@@ -74,15 +74,17 @@ void FeatureTracker::setMask()
     forw_pts.clear();
     ids.clear();
     track_cnt.clear();
+    mvX3Dc2.clear();
 
     for (auto &it : cnt_pts_id)
     {
-        if (mask.at<uchar>(it.second.first) == 255)
+        if (mask.at<uchar>(it.second.first.first) == 255)
         {
-            forw_pts.push_back(it.second.first);
-            ids.push_back(it.second.second);
+            forw_pts.push_back(it.second.first.first);
+            ids.push_back(it.second.first.second);
             track_cnt.push_back(it.first);
-            cv::circle(mask, it.second.first, MIN_DIST, 0, -1);
+            mvX3Dc2.push_back(it.second.second);
+            cv::circle(mask, it.second.first.first, MIN_DIST, 0, -1);
         }
     }
 }
@@ -94,6 +96,16 @@ void FeatureTracker::addPoints()
         forw_pts.push_back(p);
         ids.push_back(-1);
         track_cnt.push_back(1);
+        Eigen::Vector2d a(p.x, p.y);
+        Eigen::Vector3d b;
+        m_camera->liftProjective(a, b);
+        int ff = (int)forw_depth.at<unsigned short>(floor(p.y), floor(p.x));
+        int cf = (int)forw_depth.at<unsigned short>(floor(p.y), ceil(p.x));
+        int fc = (int)forw_depth.at<unsigned short>(ceil(p.y), floor(p.x));
+        int cc = (int)forw_depth.at<unsigned short>(ceil(p.y), ceil(p.x));
+        float count = ((float)(ff > 0) + (float)(cf > 0) + (float)(fc > 0) + (float)(cc > 0));
+        float depth_val = count > 0 ? (ff + cf + fc + cc) / count / 1000:0;
+        mvX3Dc2.push_back(cv::Point3f (b.x() / b.z() * depth_val, b.y() / b.z() * depth_val, depth_val));
     }
 }
 
@@ -480,7 +492,7 @@ int FeatureTracker::checkInliers(cv::Mat mR12i, cv::Mat mt12i, vector<uchar> &mv
     vector<cv::Point2f> vP2im1;
     project(vP2im1, mR12i, mt12i);
     //m_camera->projectPoints(mvX3Dc2, mR12i, mt12i, vP2im1);
-    double mvnMaxError = 2;
+    double mvnMaxError = 10;
     int mnInliersi=0;
 
     for(size_t i=0; i<cur_pts.size(); i++)
@@ -530,6 +542,8 @@ void FeatureTracker::rejectWithPnP()
     vector<uchar> status(N, 1);
     mvX3Dc1.resize(N);
     mvX3Dc2.resize(N);
+
+    double nonzero_depth_count = 0;
     //后面考虑是否从forw project到cur更合适?
     for (size_t i = 0; i < N; i++)
     {
@@ -559,7 +573,16 @@ void FeatureTracker::rejectWithPnP()
         // Skip points with depth=0
         if (depth_val == 0.0)
             status[i] = 0;
-
+        if (status[i])
+            ++nonzero_depth_count;
+    }
+    // less than 30% have depth, we got a bad depth map.
+    // use rejectWithF instead.
+    if (nonzero_depth_count/forw_pts.size() < 0.3)
+    {
+        rejectWithF();
+        ROS_ERROR("Bad depth, call rejectWithF()");
+        return;
     }
 
     reduceVector(prev_pts, status);

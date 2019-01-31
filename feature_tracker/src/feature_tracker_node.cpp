@@ -193,6 +193,11 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
                     // Here we recover depth from Z axis of 3D points
                     // mvX3Dc2 is forw_pts in 3D
                     int avg_depth = trackerData[i].mvX3Dc2[j].z * 1000;
+                    //double avg_depth = trackerData[i].mvX3Dc2[j].z;
+                    //p.x = p.x * avg_depth;
+                    //p.y = p.y * avg_depth;
+                    //p.z = p.z * avg_depth;
+                    //feature_points->points.push_back(p);
                     depth_of_point.values.push_back(avg_depth);
                     //debug use: print depth pixels
                     //test.push_back((int)show_depth.at<unsigned short>(round(cur_pts[j].y),round(cur_pts[j].x)));

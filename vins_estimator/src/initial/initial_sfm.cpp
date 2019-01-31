@@ -127,6 +127,8 @@ void GlobalSFM::triangulateTwoFramesWithDepth(int frame0, Eigen::Matrix<double, 
 		Vector2d point1;
 		for (int k = 0; k < (int)sfm_f[j].observation.size(); k++)
 		{
+			if (sfm_f[j].observation_depth[k].second < 0.1 || sfm_f[j].observation_depth[k].second >10) //shan max and min measurement
+				continue;
 			if (sfm_f[j].observation[k].first == frame0)
 			{
 				point0 = Vector3d(sfm_f[j].observation[k].second.x()*sfm_f[j].observation_depth[k].second,sfm_f[j].observation[k].second.y()*sfm_f[j].observation_depth[k].second,sfm_f[j].observation_depth[k].second);
@@ -255,6 +257,8 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 			Vector3d point0;
 			Vector2d point1;
 			int frame_0 = sfm_f[j].observation[0].first;
+			if (sfm_f[j].observation_depth[0].second < 0.1 || sfm_f[j].observation_depth[0].second > 10) //shan max and min measurement
+				continue;
 			point0 = Vector3d(sfm_f[j].observation[0].second.x()*sfm_f[j].observation_depth[0].second,sfm_f[j].observation[0].second.y()*sfm_f[j].observation_depth[0].second,sfm_f[j].observation_depth[0].second);
 			int frame_1 = sfm_f[j].observation.back().first;
 			point1 = sfm_f[j].observation.back().second;
