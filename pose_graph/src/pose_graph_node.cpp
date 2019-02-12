@@ -46,7 +46,7 @@ bool load_flag = 0;
 bool start_flag = 0;
 double SKIP_DIS = 0;
 
-float PCL_MAX_DIST, PCL_MIN_DIST;
+float PCL_MAX_DIST, PCL_MIN_DIST, RESOLUTION;
 int U_BOUNDARY, D_BOUNDARY, L_BOUNDARY, R_BOUNDARY;
 int VISUALIZATION_SHIFT_X;
 int VISUALIZATION_SHIFT_Y;
@@ -554,6 +554,13 @@ int main(int argc, char **argv)
         R_BOUNDARY = fsSettings["r_boundary"];
         PCL_MIN_DIST = fsSettings["pcl_min_dist"];
         PCL_MAX_DIST = fsSettings["pcl_max_dist"];
+		RESOLUTION = fsSettings["resolution"];
+		posegraph.octree = pcl::octree::OctreePointCloudSearch<pcl::PointXYZ>::Ptr(new pcl::octree::OctreePointCloudSearch<pcl::PointXYZ>(RESOLUTION));
+	    posegraph.cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
+		(*(posegraph.octree)).setInputCloud(posegraph.cloud);
+        (*(posegraph.octree)).addPointsFromInputCloud();
+		// in pcl 1.8.0+, need to set bbox (isVoxelOccupiedAtPoint will check bbox)
+		(*(posegraph.octree)).defineBoundingBox(-100, -100, -100, 100, 100, 100);
         std::string pkg_path = ros::package::getPath("pose_graph");
         string vocabulary_file = pkg_path + "/../support_files/brief_k10L6.bin";
         cout << "vocabulary_file" << vocabulary_file << endl;

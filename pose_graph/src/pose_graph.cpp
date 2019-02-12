@@ -29,8 +29,7 @@ void PoseGraph::registerPub(ros::NodeHandle &n)
     pub_pg_path = n.advertise<nav_msgs::Path>("pose_graph_path", 1000);
     pub_base_path = n.advertise<nav_msgs::Path>("base_path", 1000);
     pub_pose_graph = n.advertise<visualization_msgs::MarkerArray>("pose_graph", 1000);
-    pub_dense_pcl = n.advertise<sensor_msgs::PointCloud2>("dense_pcl", 1000);
-    pub_cur_pcl = n.advertise<sensor_msgs::PointCloud>("current_pcl", 1000);
+    pub_octree = n.advertise<sensor_msgs::PointCloud2>("octree", 1000);
     for (int i = 1; i < 10; i++)
         pub_path[i] = n.advertise<nav_msgs::Path>("path_" + to_string(i), 1000);
 }
@@ -153,32 +152,35 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     pose_stamped.pose.orientation.z = Q.z();
     pose_stamped.pose.orientation.w = Q.w();
 
-
     path[sequence_cnt].poses.push_back(pose_stamped);
     path[sequence_cnt].header = pose_stamped.header;
 
-    // clear previous points
-    current_pcl.points.clear();
-
-    current_pcl.header.stamp = ros::Time(cur_kf->time_stamp);
-    current_pcl.header.frame_id = "world";
     sensor_msgs::PointCloud2 tmp_pcl;
-    m_densepcl.lock();
-    dense_pcl.header = current_pcl.header;
-    for (auto &pcl : cur_kf->point_3d_depth)
+    m_octree.lock();
+
+    int pcl_count_temp = 0;
+    for (unsigned int i = 0; i < cur_kf->point_3d_depth.size(); i++)
     {
+        cv::Point3f pcl = cur_kf->point_3d_depth[i];
         Vector3d pts_i(pcl.x , pcl.y, pcl.z);
         Vector3d w_pts_i = R * (qi_d * pts_i + ti_d) + P;
-        geometry_msgs::Point32 pts;
-        pts.x = w_pts_i(0);
-        pts.y = w_pts_i(1);
-        pts.z = w_pts_i(2);
-
-        dense_pcl.points.push_back(pts);
-        current_pcl.points.push_back(pts);
+        pcl::PointXYZ searchPoint;
+        searchPoint.x = w_pts_i(0);
+        searchPoint.y = w_pts_i(1);
+        searchPoint.z = w_pts_i(2);
+		//double min_x, min_y, min_z, max_x, max_y, max_z;
+		//(*octree).getBoundingBox(min_x, min_y, min_z, max_x, max_y, max_z);
+		//cout<< min_x << " "<< min_y<< " "<< min_z<< " "<< max_x<< " "<< max_y<< " "<< max_z<<endl;
+        if (!(*octree).isVoxelOccupiedAtPoint(searchPoint))
+        {
+            cur_kf->point_3d_depth[pcl_count_temp] = pcl;
+            (*octree).addPointToCloud(searchPoint, cloud);
+            ++pcl_count_temp;
+        }
     }
-    sensor_msgs::convertPointCloudToPointCloud2(dense_pcl, tmp_pcl);
-    m_densepcl.unlock();
+    cur_kf->point_3d_depth.resize(pcl_count_temp);
+    pcl::toROSMsg(*((*octree).getInputCloud()), tmp_pcl);
+    m_octree.unlock();
 
 
     // not used
@@ -239,10 +241,12 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         }
     }
     //posegraph_visualization->add_pose(P + Vector3d(VISUALIZATION_SHIFT_X, VISUALIZATION_SHIFT_Y, 0), Q);
+    tmp_pcl.header.stamp = ros::Time(cur_kf->time_stamp);
+    tmp_pcl.header.frame_id = "world";
     // add frame to key frame list
 	keyframelist.push_back(cur_kf);
     publish();
-    pub_dense_pcl.publish(tmp_pcl);
+    pub_octree.publish(tmp_pcl);
 	m_keyframelist.unlock();
 
 }
@@ -355,7 +359,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     //first query; then add this frame into database!
     QueryResults ret;
     TicToc t_query;
-    db.query(keyframe->brief_descriptors, ret, 4, frame_index - 3000);//shan set 3000-a large value to disable loop closure
+    db.query(keyframe->brief_descriptors, ret, 4, frame_index - 50);//shan set 3000-a large value to disable loop closure
     //printf("query time: %f", t_query.toc());
     //cout << "Searching for Image " << frame_index << ". " << ret << endl;
 
@@ -415,7 +419,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
         cv::waitKey(20);
     }
 */
-    if (find_loop && frame_index > 3000)//shan set 3000-a large value to disable loop closure
+    if (find_loop && frame_index > 50)//shan set 3000-a large value to disable loop closure
     {
         int min_index = -1;
         for (unsigned int i = 0; i < ret.size(); i++)
@@ -760,8 +764,14 @@ void PoseGraph::updatePath()
     m_keyframelist.unlock();
 
     // throw the costy part beyond m_keyframelist
-    sensor_msgs::PointCloud tmp_dense_pcl;
-    tmp_dense_pcl.header = tmp_header;
+    m_octree.lock();
+    //some clean up
+    (*octree).deleteTree();
+    (*cloud).clear();
+    (*octree).setInputCloud(cloud);
+    (*octree).addPointsFromInputCloud();
+    (*octree).defineBoundingBox(-100, -100, -100, 100, 100, 100);
+
     for (auto &pcl_vect : tmp_keyframelist)
     {
         Vector3d P;
@@ -772,19 +782,18 @@ void PoseGraph::updatePath()
         {
             Vector3d pts_i(pcl.x , pcl.y, pcl.z);
             Vector3d w_pts_i = R * (qi_d * pts_i + ti_d) + P;
-            geometry_msgs::Point32 pts;
-            pts.x = w_pts_i(0);
-            pts.y = w_pts_i(1);
-            pts.z = w_pts_i(2);
-            tmp_dense_pcl.points.push_back(pts);
+            pcl::PointXYZ searchPoint;
+            searchPoint.x = w_pts_i(0);
+            searchPoint.y = w_pts_i(1);
+            searchPoint.z = w_pts_i(2);
+            if (!(*octree).isVoxelOccupiedAtPoint(searchPoint))
+            {
+                (*octree).addPointToCloud(searchPoint, cloud);
+            }
         }
         tmp_RTlist.pop();
     }
-    m_densepcl.lock();
-    dense_pcl.points.clear();
-    dense_pcl.header = tmp_dense_pcl.header;
-    dense_pcl.points = tmp_dense_pcl.points;
-    m_densepcl.unlock();
+    m_octree.unlock();
 
 }
 
@@ -978,7 +987,6 @@ void PoseGraph::publish()
     }
 
     pub_base_path.publish(base_path);
-    //pub_cur_pcl.publish(current_pcl);
 
     //posegraph_visualization->publish_by(pub_pose_graph, path[sequence_cnt].header);
 }
