@@ -32,7 +32,7 @@
 
 #define SHOW_S_EDGE false
 #define SHOW_L_EDGE false
-#define SAVE_LOOP_PATH false
+#define SAVE_LOOP_PATH true
 
 using namespace DVision;
 using namespace DBoW2;
@@ -85,7 +85,6 @@ private:
 	map<int, cv::Mat> image_pool;
 	int earliest_loop_index;
 	int base_sequence;
-    std::chrono::time_point<std::chrono::system_clock> time_prev;
 
 	BriefDatabase db;
 	BriefVocabulary* voc;
@@ -95,7 +94,6 @@ private:
 	ros::Publisher pub_pose_graph;
 	ros::Publisher pub_path[10];
 	ros::Publisher pub_octree;
-    ros::Publisher pub_cur_pcl;
 };
 
 template <typename T>

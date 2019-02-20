@@ -241,8 +241,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         }
     }
     //posegraph_visualization->add_pose(P + Vector3d(VISUALIZATION_SHIFT_X, VISUALIZATION_SHIFT_Y, 0), Q);
-    tmp_pcl.header.stamp = ros::Time(cur_kf->time_stamp);
-    tmp_pcl.header.frame_id = "world";
+    tmp_pcl.header = pose_stamped.header;
     // add frame to key frame list
 	keyframelist.push_back(cur_kf);
     publish();
@@ -629,10 +628,6 @@ void PoseGraph::optimize4DoF()
 
 void PoseGraph::updatePath()
 {
-    auto time_cur = std::chrono::system_clock::now();
-    std::chrono::duration<double> duration = time_cur - time_prev;
-    if (duration.count() < 4)
-        return;
 
     // store info for updating dense pcl without locking keyframe list
     // which may take much time
@@ -797,16 +792,21 @@ void PoseGraph::updatePath()
 
 }
 
-
 void PoseGraph::savePoseGraph()
 {
     m_keyframelist.lock();
     TicToc tmp_t;
-    FILE *pFile;
+    FILE *pFile,*pFile_shan_pg,*pFile_shan_vio;
     printf("pose graph path: %s\n",POSE_GRAPH_SAVE_PATH.c_str());
     printf("pose graph saving... \n");
     string file_path = POSE_GRAPH_SAVE_PATH + "pose_graph.txt";
+//    string file_path_shan_pg = POSE_GRAPH_SAVE_PATH + "stamped_traj_estimate_mono_pg.txt";
+//    string file_path_shan_vio = POSE_GRAPH_SAVE_PATH + "stamped_traj_estimate_mono_vio.txt";
+    string file_path_shan_pg = "/home/riger/rpg_trajectory_evaluation/results/laptop/vio_mono/laptop_vio_mono_MH_01/stamped_traj_estimate.txt";
+    string file_path_shan_vio = "/home/riger/rpg_trajectory_evaluation/results/laptop/vio_mono/laptop_vio_mono_MH_01/vio_stamped_traj_estimate.txt";
     pFile = fopen (file_path.c_str(),"w");
+    pFile_shan_pg = fopen(file_path_shan_pg.c_str(),"w");
+    pFile_shan_vio = fopen(file_path_shan_vio.c_str(),"w");
     //fprintf(pFile, "index time_stamp Tx Ty Tz Qw Qx Qy Qz loop_index loop_info\n");
     list<KeyFrame*>::iterator it;
     for (it = keyframelist.begin(); it != keyframelist.end(); it++)
@@ -819,18 +819,26 @@ void PoseGraph::savePoseGraph()
         }
         Quaterniond VIO_tmp_Q{(*it)->vio_R_w_i};
         Quaterniond PG_tmp_Q{(*it)->R_w_i};
+        Quaterniond rVIO_tmp_Q{(*it)->vio_R_w_i.transpose()};
+        Quaterniond rPG_tmp_Q{(*it)->R_w_i.transpose()};
         Vector3d VIO_tmp_T = (*it)->vio_T_w_i;
         Vector3d PG_tmp_T = (*it)->T_w_i;
 
-        fprintf (pFile, " %d %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %d %f %f %f %f %f %f %f %f %d\n",(*it)->index, (*it)->time_stamp, 
-                                    VIO_tmp_T.x(), VIO_tmp_T.y(), VIO_tmp_T.z(), 
-                                    PG_tmp_T.x(), PG_tmp_T.y(), PG_tmp_T.z(), 
-                                    VIO_tmp_Q.w(), VIO_tmp_Q.x(), VIO_tmp_Q.y(), VIO_tmp_Q.z(), 
-                                    PG_tmp_Q.w(), PG_tmp_Q.x(), PG_tmp_Q.y(), PG_tmp_Q.z(), 
-                                    (*it)->loop_index, 
-                                    (*it)->loop_info(0), (*it)->loop_info(1), (*it)->loop_info(2), (*it)->loop_info(3),
-                                    (*it)->loop_info(4), (*it)->loop_info(5), (*it)->loop_info(6), (*it)->loop_info(7),
-                                    (int)(*it)->keypoints.size());
+        fprintf (pFile, " %d %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %d %f %f %f %f %f %f %f %f %d\n",(*it)->index, (*it)->time_stamp,
+                 VIO_tmp_T.x(), VIO_tmp_T.y(), VIO_tmp_T.z(),
+                 PG_tmp_T.x(), PG_tmp_T.y(), PG_tmp_T.z(),
+                 VIO_tmp_Q.w(), VIO_tmp_Q.x(), VIO_tmp_Q.y(), VIO_tmp_Q.z(),
+                 PG_tmp_Q.w(), PG_tmp_Q.x(), PG_tmp_Q.y(), PG_tmp_Q.z(),
+                 (*it)->loop_index,
+                 (*it)->loop_info(0), (*it)->loop_info(1), (*it)->loop_info(2), (*it)->loop_info(3),
+                 (*it)->loop_info(4), (*it)->loop_info(5), (*it)->loop_info(6), (*it)->loop_info(7),
+                 (int)(*it)->keypoints.size());
+        fprintf (pFile_shan_pg, "%f %f %f %f %f %f %f %f\n",(*it)->time_stamp,
+                 PG_tmp_T.x(), PG_tmp_T.y(), PG_tmp_T.z(),
+                 PG_tmp_Q.x(), PG_tmp_Q.y(), PG_tmp_Q.z(),PG_tmp_Q.w());
+        fprintf (pFile_shan_vio, "%f %f %f %f %f %f %f %f\n",(*it)->time_stamp,
+                 VIO_tmp_T.x(), VIO_tmp_T.y(), VIO_tmp_T.z(),
+                 VIO_tmp_Q.x(), VIO_tmp_Q.y(), VIO_tmp_Q.z(),VIO_tmp_Q.w());
 
         // write keypoints, brief_descriptors   vector<cv::KeyPoint> keypoints vector<BRIEF::bitset> brief_descriptors;
         assert((*it)->keypoints.size() == (*it)->brief_descriptors.size());
@@ -842,17 +850,21 @@ void PoseGraph::savePoseGraph()
         for (int i = 0; i < (int)(*it)->keypoints.size(); i++)
         {
             brief_file << (*it)->brief_descriptors[i] << endl;
-            fprintf(keypoints_file, "%f %f %f %f\n", (*it)->keypoints[i].pt.x, (*it)->keypoints[i].pt.y, 
-                                                     (*it)->keypoints_norm[i].pt.x, (*it)->keypoints_norm[i].pt.y);
+            fprintf(keypoints_file, "%f %f %f %f\n", (*it)->keypoints[i].pt.x, (*it)->keypoints[i].pt.y,
+                    (*it)->keypoints_norm[i].pt.x, (*it)->keypoints_norm[i].pt.y);
         }
         brief_file.close();
         fclose(keypoints_file);
     }
+    fclose(pFile_shan_vio);
+    fclose(pFile_shan_pg);
     fclose(pFile);
+
 
     printf("save pose graph time: %f s\n", tmp_t.toc() / 1000);
     m_keyframelist.unlock();
 }
+
 void PoseGraph::loadPoseGraph()
 {
     TicToc tmp_t;

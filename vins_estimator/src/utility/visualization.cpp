@@ -425,7 +425,7 @@ void pubKeyframe(const Estimator &estimator)
                 double depth = it_per_id.feature_per_frame[0].depth;
                 depth = depth == 0 ? it_per_id.estimated_depth : depth;
                 // a limit on distance, avoid large drifts
-                if (depth < 6)
+                //if (depth < 6)
                 {
                     Vector3d pts_i = it_per_id.feature_per_frame[0].point * depth;
                     Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0])

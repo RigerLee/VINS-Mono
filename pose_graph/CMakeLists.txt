@@ -17,7 +17,6 @@ find_package(catkin REQUIRED COMPONENTS
     pcl_conversions
     message_filters
     )
-#find_package(PCL REQUIRED)
 
 find_package(OpenCV)
 

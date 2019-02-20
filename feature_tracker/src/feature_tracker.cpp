@@ -296,10 +296,11 @@ void FeatureTracker::rejectWithSim3()
     }
     // less than 30% have depth, we got a bad depth map.
     // use rejectWithF instead.
+    //if (1)  //uncomment this if don't want to use sim3, then it will always call rejectWithF
     if (nonzero_depth_count/forw_pts.size() < 0.3)
     {
         rejectWithF();
-        ROS_ERROR("Bad depth, call rejectWithF()");
+        //ROS_ERROR("Bad depth, call rejectWithF()");
         return;
     }
 
