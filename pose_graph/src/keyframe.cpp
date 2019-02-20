@@ -12,7 +12,7 @@ static void reduceVector(vector<Derived> &v, vector<uchar> status)
 
 // create keyframe online
 KeyFrame::KeyFrame(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i, cv::Mat &_image,
-		           vector<cv::Point3f> &_point_3d_depth, vector<cv::Point3f> &_point_3d, vector<cv::Point2f> &_point_2d_uv,
+		           vector<std::pair<cv::Point3f, cv::Vec3b>> &_point_3d_depth, vector<cv::Point3f> &_point_3d, vector<cv::Point2f> &_point_2d_uv,
 		           vector<cv::Point2f> &_point_2d_norm, vector<double> &_point_id, int _sequence)
 {
 	time_stamp = _time_stamp;

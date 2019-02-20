@@ -5,8 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /VIO1
-        - /pose_graph1
-        - /PointCloud21
+        - /ColorOccupancyGrid1
       Splitter Ratio: 0.4651159942150116
     Tree Height: 218
   - Class: rviz/Selection
@@ -445,36 +444,18 @@ Visualization Manager:
           Value: false
       Enabled: true
       Name: pose_graph
-    - Alpha: 1
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 2.1702020168304443
-        Min Value: -2.0994906425476074
-        Value: true
-      Axis: Z
-      Channel Name: intensity
-      Class: rviz/PointCloud2
-      Color: 255; 255; 255
-      Color Transformer: AxisColor
-      Decay Time: 0
+    - Class: octomap_rviz_plugin/ColorOccupancyGrid
       Enabled: true
-      Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 4096
-      Min Color: 0; 0; 0
-      Min Intensity: 0
-      Name: PointCloud2
-      Position Transformer: XYZ
-      Queue Size: 10
-      Selectable: true
-      Size (Pixels): 1
-      Size (m): 0.009999999776482582
-      Style: Points
-      Topic: /pose_graph/octree
-      Unreliable: false
-      Use Fixed Frame: true
-      Use rainbow: true
+      Max. Height Display: inf
+      Max. Octree Depth: 16
+      Min. Height Display: -inf
+      Name: ColorOccupancyGrid
+      Octomap Topic: /pose_graph/octomap_full
+      Queue Size: 5
       Value: true
+      Voxel Alpha: 1
+      Voxel Coloring: Cell Color
+      Voxel Rendering: Occupied Voxels
   Enabled: true
   Global Options:
     Background Color: 0; 0; 0
@@ -498,25 +479,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 10.29336929321289
+      Distance: 21.16348648071289
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -3.0185155868530273
-        Y: -0.42596983909606934
-        Z: 1.747671740304213e-5
+        X: -2.369884490966797
+        Y: 0.30542051792144775
+        Z: 1.366202013741713e-5
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5797972679138184
+      Pitch: 0.5702020525932312
       Target Frame: <Fixed Frame>
       Value: XYOrbit (rviz)
-      Yaw: 3.0711522102355957
+      Yaw: 3.3211851119995117
     Saved: ~
 Window Geometry:
   Displays:

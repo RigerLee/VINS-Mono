@@ -383,7 +383,7 @@ void process()
                 skip_cnt = 0;
             }
 
-            cv_bridge::CvImageConstPtr ptr;
+            cv_bridge::CvImageConstPtr ptr, color_ptr;
             if (image_msg->encoding == "8UC1")
             {
                 sensor_msgs::Image img;
@@ -398,6 +398,7 @@ void process()
             }
             else
                 ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::MONO8);
+            color_ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::RGB8);
 
             //depth has encoding TYPE_16UC1
             cv_bridge::CvImageConstPtr depth_ptr;
@@ -416,6 +417,7 @@ void process()
 
             cv::Mat image = ptr->image;
             cv::Mat depth = depth_ptr->image;
+            cv::Mat color = color_ptr->image;
             // build keyframe
             Vector3d T = Vector3d(pose_msg->pose.pose.position.x,
                                   pose_msg->pose.pose.position.y,
@@ -429,7 +431,7 @@ void process()
                 vector<cv::Point3f> point_3d;
                 vector<cv::Point2f> point_2d_uv;
                 vector<cv::Point2f> point_2d_normal;
-                vector<cv::Point3f> point_3d_depth;
+                vector<std::pair<cv::Point3f, cv::Vec3b>> point_3d_depth;
                 vector<double> point_id;
 
                 for (unsigned int i = 0; i < point_msg->points.size(); i++)
@@ -463,11 +465,13 @@ void process()
                         Eigen::Vector3d b;
 						//depth is aligned
                         m_camera->liftProjective(a, b);
+                        cv::Vec3b color_vector;
                         float depth_val = ((float)depth.at<unsigned short>(j, i)) / 1000.0;
                         if (depth_val > PCL_MIN_DIST && depth_val < PCL_MAX_DIST)
                         {
                             //debug: ++count_;
-                            point_3d_depth.push_back(cv::Point3f(b.x() * depth_val, b.y() * depth_val, depth_val));
+                            color_vector = color.at<cv::Vec3b>(j, i);
+                            point_3d_depth.push_back(make_pair(cv::Point3f(b.x() * depth_val, b.y() * depth_val, depth_val), color_vector));
                         }
                     }
                 }
@@ -555,12 +559,8 @@ int main(int argc, char **argv)
         PCL_MIN_DIST = fsSettings["pcl_min_dist"];
         PCL_MAX_DIST = fsSettings["pcl_max_dist"];
 		RESOLUTION = fsSettings["resolution"];
-		posegraph.octree = pcl::octree::OctreePointCloudSearch<pcl::PointXYZ>::Ptr(new pcl::octree::OctreePointCloudSearch<pcl::PointXYZ>(RESOLUTION));
-	    posegraph.cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
-		(*(posegraph.octree)).setInputCloud(posegraph.cloud);
-        (*(posegraph.octree)).addPointsFromInputCloud();
-		// in pcl 1.8.0+, need to set bbox (isVoxelOccupiedAtPoint will check bbox)
-		(*(posegraph.octree)).defineBoundingBox(-100, -100, -100, 100, 100, 100);
+		posegraph.octomap = new octomap::ColorOcTree(RESOLUTION);
+        posegraph.temp_octomap = new octomap::ColorOcTree(RESOLUTION);
         std::string pkg_path = ros::package::getPath("pose_graph");
         string vocabulary_file = pkg_path + "/../support_files/brief_k10L6.bin";
         cout << "vocabulary_file" << vocabulary_file << endl;

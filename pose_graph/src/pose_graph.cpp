@@ -29,7 +29,7 @@ void PoseGraph::registerPub(ros::NodeHandle &n)
     pub_pg_path = n.advertise<nav_msgs::Path>("pose_graph_path", 1000);
     pub_base_path = n.advertise<nav_msgs::Path>("base_path", 1000);
     pub_pose_graph = n.advertise<visualization_msgs::MarkerArray>("pose_graph", 1000);
-    pub_octree = n.advertise<sensor_msgs::PointCloud2>("octree", 1000);
+    pub_octomap = n.advertise<octomap_msgs::Octomap>("octomap_full", 1, true);
     for (int i = 1; i < 10; i++)
         pub_path[i] = n.advertise<nav_msgs::Path>("path_" + to_string(i), 1000);
 }
@@ -155,32 +155,16 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     path[sequence_cnt].poses.push_back(pose_stamped);
     path[sequence_cnt].header = pose_stamped.header;
 
-    sensor_msgs::PointCloud2 tmp_pcl;
-    m_octree.lock();
-
-    int pcl_count_temp = 0;
-    for (unsigned int i = 0; i < cur_kf->point_3d_depth.size(); i++)
+    m_densepcl.lock();
+    for (auto &pcl : cur_kf->point_3d_depth)
     {
-        cv::Point3f pcl = cur_kf->point_3d_depth[i];
-        Vector3d pts_i(pcl.x , pcl.y, pcl.z);
+        Vector3d pts_i(pcl.first.x , pcl.first.y, pcl.first.z);
         Vector3d w_pts_i = R * (qi_d * pts_i + ti_d) + P;
-        pcl::PointXYZ searchPoint;
-        searchPoint.x = w_pts_i(0);
-        searchPoint.y = w_pts_i(1);
-        searchPoint.z = w_pts_i(2);
-		//double min_x, min_y, min_z, max_x, max_y, max_z;
-		//(*octree).getBoundingBox(min_x, min_y, min_z, max_x, max_y, max_z);
-		//cout<< min_x << " "<< min_y<< " "<< min_z<< " "<< max_x<< " "<< max_y<< " "<< max_z<<endl;
-        if (!(*octree).isVoxelOccupiedAtPoint(searchPoint))
-        {
-            cur_kf->point_3d_depth[pcl_count_temp] = pcl;
-            (*octree).addPointToCloud(searchPoint, cloud);
-            ++pcl_count_temp;
-        }
+        (*octomap).insertRay(octomap::point3d(P(0), P(1), P(2)), octomap::point3d(w_pts_i(0), w_pts_i(1), w_pts_i(2)));
+        (*octomap).setNodeColor(w_pts_i(0), w_pts_i(1), w_pts_i(2), pcl.second[0], pcl.second[1], pcl.second[2]);
     }
-    cur_kf->point_3d_depth.resize(pcl_count_temp);
-    pcl::toROSMsg(*((*octree).getInputCloud()), tmp_pcl);
-    m_octree.unlock();
+    (*octomap).prune();
+    m_densepcl.unlock();
 
 
     // not used
@@ -241,11 +225,18 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         }
     }
     //posegraph_visualization->add_pose(P + Vector3d(VISUALIZATION_SHIFT_X, VISUALIZATION_SHIFT_Y, 0), Q);
-    tmp_pcl.header = pose_stamped.header;
     // add frame to key frame list
 	keyframelist.push_back(cur_kf);
     publish();
-    pub_octree.publish(tmp_pcl);
+    octomap_msgs::Octomap map;
+    map.header = pose_stamped.header;
+    // bug fix: should add lock here to prevent conflict with updatePath
+    m_densepcl.lock();
+    if (octomap_msgs::fullMapToMsg(*octomap, map))
+        pub_octomap.publish(map);
+    else
+        ROS_ERROR("Error serializing OctoMap");
+    m_densepcl.unlock();
 	m_keyframelist.unlock();
 
 }
@@ -631,7 +622,7 @@ void PoseGraph::updatePath()
 
     // store info for updating dense pcl without locking keyframe list
     // which may take much time
-    vector<vector<cv::Point3f>> tmp_keyframelist;
+    vector<vector<std::pair<cv::Point3f, cv::Vec3b>>> tmp_keyframelist;
     queue<pair<Matrix3d, Vector3d>> tmp_RTlist;
     std_msgs::Header tmp_header;
 
@@ -759,13 +750,7 @@ void PoseGraph::updatePath()
     m_keyframelist.unlock();
 
     // throw the costy part beyond m_keyframelist
-    m_octree.lock();
-    //some clean up
-    (*octree).deleteTree();
-    (*cloud).clear();
-    (*octree).setInputCloud(cloud);
-    (*octree).addPointsFromInputCloud();
-    (*octree).defineBoundingBox(-100, -100, -100, 100, 100, 100);
+    octomap::ColorOcTree* temp_ptr;
 
     for (auto &pcl_vect : tmp_keyframelist)
     {
@@ -775,20 +760,22 @@ void PoseGraph::updatePath()
         P = tmp_RTlist.front().second;
         for (auto &pcl : pcl_vect)
         {
-            Vector3d pts_i(pcl.x , pcl.y, pcl.z);
+            Vector3d pts_i(pcl.first.x, pcl.first.y, pcl.first.z);
             Vector3d w_pts_i = R * (qi_d * pts_i + ti_d) + P;
-            pcl::PointXYZ searchPoint;
-            searchPoint.x = w_pts_i(0);
-            searchPoint.y = w_pts_i(1);
-            searchPoint.z = w_pts_i(2);
-            if (!(*octree).isVoxelOccupiedAtPoint(searchPoint))
-            {
-                (*octree).addPointToCloud(searchPoint, cloud);
-            }
+            (*temp_octomap).insertRay(octomap::point3d(P(0), P(1), P(2)), octomap::point3d(w_pts_i(0), w_pts_i(1), w_pts_i(2)));
+            (*temp_octomap).setNodeColor(w_pts_i(0), w_pts_i(1), w_pts_i(2), pcl.second[0], pcl.second[1], pcl.second[2]);
         }
         tmp_RTlist.pop();
     }
-    m_octree.unlock();
+    (*temp_octomap).prune();
+
+    // do some pointer exchange work to save time
+    m_densepcl.lock();
+    temp_ptr = octomap;
+    octomap = temp_octomap;
+    temp_octomap = temp_ptr;
+    m_densepcl.unlock();
+    (*temp_octomap).clear();
 
 }
 

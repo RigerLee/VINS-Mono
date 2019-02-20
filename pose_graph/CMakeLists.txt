@@ -13,8 +13,8 @@ find_package(catkin REQUIRED COMPONENTS
     camera_model
     cv_bridge
     roslib
-    pcl_ros
-    pcl_conversions
+    octomap_ros
+    octomap_msgs
     message_filters
     )
 

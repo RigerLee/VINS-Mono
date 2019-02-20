@@ -25,10 +25,9 @@
 #include "ThirdParty/DVision/DVision.h"
 #include "ThirdParty/DBoW/TemplatedDatabase.h"
 #include "ThirdParty/DBoW/TemplatedVocabulary.h"
+#include <octomap/octomap.h>
+#include <octomap_msgs/conversions.h>
 
-#include <pcl_conversions/pcl_conversions.h>
-#include <pcl/point_cloud.h>
-#include <pcl/octree/octree_search.h>
 
 #define SHOW_S_EDGE false
 #define SHOW_L_EDGE false
@@ -62,8 +61,9 @@ public:
 	// world frame( base sequence or first sequence)<----> cur sequence frame  
 	Vector3d w_t_vio;
 	Matrix3d w_r_vio;
-    pcl::octree::OctreePointCloudSearch<pcl::PointXYZ>::Ptr octree;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
+    octomap::ColorOcTree* octomap;
+    octomap::ColorOcTree* temp_octomap;
+
 
 private:
 	int detectLoop(KeyFrame* keyframe, int frame_index);
@@ -75,7 +75,7 @@ private:
 	std::mutex m_optimize_buf;
 	std::mutex m_path;
 	std::mutex m_drift;
-	std::mutex m_octree;
+	std::mutex m_densepcl;
 	std::thread t_optimization;
 	std::queue<int> optimize_buf;
 
@@ -93,7 +93,7 @@ private:
 	ros::Publisher pub_base_path;
 	ros::Publisher pub_pose_graph;
 	ros::Publisher pub_path[10];
-	ros::Publisher pub_octree;
+	ros::Publisher pub_octomap;
 };
 
 template <typename T>
