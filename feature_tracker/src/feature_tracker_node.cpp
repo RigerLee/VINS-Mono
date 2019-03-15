@@ -101,7 +101,6 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
     cv::Mat show_img = ptr->image;
     TicToc t_r;
     // init pts here, using readImage()
-
     for (int i = 0; i < NUM_OF_CAM; i++)
     {
         ROS_DEBUG("processing camera %d", i);
@@ -331,7 +330,7 @@ int main(int argc, char **argv)
 
     //trackerData defined as global parameter   type: FeatureTracker list   size: 1
     for (int i = 0; i < NUM_OF_CAM; i++)
-        trackerData[i].readIntrinsicParameter(CAM_NAMES[i], "/home/riger/test_ws/src/VINS-Mono/feature_tracker/../config/realsense/realsense_depth_config.yaml");
+        trackerData[i].readIntrinsicParameter(CAM_NAMES[i], CAM_DEPTH_NAMES[i]);
 
     if(FISHEYE)
     {
