@@ -846,6 +846,17 @@ void Estimator::optimization()
                                                                      it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td,
                                                                      it_per_id.feature_per_frame[0].uv.y(), it_per_frame.uv.y());
                     problem.AddResidualBlock(f_td, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]);
+                    //shan:new test
+//                    double shan_x = 1. / para_Feature[feature_index][0];
+//                    double shan_y = -0.0001875 + 0.0003440476*shan_x + 0.003678571*shan_x*shan_x;
+//                    double shan_lowerbound = 1. / (shan_x + shan_y);
+//                    double shan_upperbound = 1. / (shan_x - shan_y);
+//                cout << shan_x<<'|'<< shan_y<<'|'<< shan_lowerbound<<'|'<<shan_upperbound<<endl;
+//                    problem.SetParameterLowerBound(para_Feature[feature_index], 0, shan_lowerbound);
+//                    problem.SetParameterUpperBound(para_Feature[feature_index], 0, shan_upperbound);
+                    if (it_per_id.estimate_flag == 1)
+                        problem.SetParameterBlockConstant(para_Feature[feature_index]);
+
                     /*
                     double **para = new double *[5];
                     para[0] = para_Pose[imu_i];
@@ -860,6 +871,15 @@ void Estimator::optimization()
             {
                 ProjectionFactor *f = new ProjectionFactor(pts_i, pts_j);
                 problem.AddResidualBlock(f, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index]);
+                //shan:new test
+//                double shan_x = 1. / para_Feature[feature_index][0];
+//                double shan_y = -0.0001875 + 0.0003440476*shan_x + 0.003678571*shan_x*shan_x;
+//                double shan_lowerbound = 1. / (shan_x + shan_y);
+//                double shan_upperbound = 1. / (shan_x - shan_y);
+//                problem.SetParameterLowerBound(para_Feature[feature_index], 0, shan_lowerbound);
+//                problem.SetParameterUpperBound(para_Feature[feature_index], 0, shan_upperbound);
+                if (it_per_id.estimate_flag == 1)
+                    problem.SetParameterBlockConstant(para_Feature[feature_index]);
             }
             f_m_cnt++;
         }

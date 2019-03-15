@@ -33,7 +33,7 @@ class FeatureTracker
   public:
     FeatureTracker();
 
-    void readImage(const cv::Mat &_img, const cv::Mat &_color_depth, const cv::Mat &_depth, double _cur_time);
+    void readImage(const cv::Mat &_img, const cv::Mat &_color_depth, const cv::Mat &_color_depth_depth, const cv::Mat &_depth, double _cur_time);
 
     void setMask();
 	void setMaskDepth();
@@ -60,7 +60,7 @@ class FeatureTracker
     cv::Mat prev_img, cur_img, forw_img;
     cv::Mat prev_depth, cur_depth, forw_depth;
     //newly added
-    cv::Mat prev_color_depth, cur_color_depth, forw_color_depth;
+    cv::Mat prev_color_depth, cur_color_depth, forw_color_depth, forw_color_depth_depth;
 
     vector<cv::Point2f> n_pts;
 	vector<cv::Point2f> n_pts_depth;

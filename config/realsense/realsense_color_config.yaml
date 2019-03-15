@@ -4,6 +4,7 @@
 imu_topic: "/camera/imu"
 image_topic: "/camera/color/image_raw"
 depth_color_topic: "/camera/depth/image_rect_raw"
+depth_color_depth_topic: "/camera/actual_ori_fake_aligned_depth_to_color/image_raw"
 depth_topic: "/camera/aligned_depth_to_color/image_raw"
 output_path: "/home/riger/output/"
 

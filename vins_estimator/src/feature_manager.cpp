@@ -280,10 +280,11 @@ void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])/
 
         it_per_id.estimated_depth = svd_method;
         //it_per_id->estimated_depth = INIT_DEPTH;
-
+        it_per_id.estimate_flag = 2;
         if (it_per_id.estimated_depth < 0.1)
         {
             it_per_id.estimated_depth = INIT_DEPTH;
+            it_per_id.estimate_flag = 0;
         }
 
     }
@@ -302,7 +303,7 @@ void FeatureManager::triangulateWithDepth(Vector3d Ps[], Vector3d tic[], Matrix3
 
         int start_frame = it_per_id.start_frame;
 
-        vector<double> verified_depths;//todo：shan 就当目前是depth，而不是 逆 深度,待验证
+        vector<double> verified_depths;//todo：shan 就当目前是depth，而不是 逆 深度,待验证 Done
 
         Eigen::Vector3d tr = Ps[start_frame] + Rs[start_frame] * tic[0]; //shan: tr -> twcr
         Eigen::Matrix3d Rr = Rs[start_frame] * ric[0];                   //shan: Rr -> Rwcr
@@ -349,10 +350,12 @@ void FeatureManager::triangulateWithDepth(Vector3d Ps[], Vector3d tic[], Matrix3
 //        }
 //        cout << endl;
         it_per_id.estimated_depth = depth_ave;
+        it_per_id.estimate_flag = 1;
 
         if (it_per_id.estimated_depth < 0.1)
         {
             it_per_id.estimated_depth = INIT_DEPTH;
+            it_per_id.estimate_flag = 0;
         }
 
     }

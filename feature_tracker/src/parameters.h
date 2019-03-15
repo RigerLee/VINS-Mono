@@ -9,7 +9,7 @@ const int NUM_OF_CAM = 1;
 
 
 extern std::string IMAGE_TOPIC;
-extern std::string DEPTH_COLOR_TOPIC;
+extern std::string DEPTH_COLOR_TOPIC, DEPTH_COLOR_DEPTH_TOPIC;
 extern std::string DEPTH_TOPIC;
 extern std::string IMU_TOPIC;
 extern std::string FISHEYE_MASK;

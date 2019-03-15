@@ -29,7 +29,7 @@ bool first_image_flag = true;
 double last_image_time = 0;
 bool init_pub = 0;
 
-void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs::ImageConstPtr &color_depth_msg, const sensor_msgs::ImageConstPtr &depth_msg)
+void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs::ImageConstPtr &color_depth_msg, const sensor_msgs::ImageConstPtr &color_depth_depth_msg, const sensor_msgs::ImageConstPtr &depth_msg)
 {
     if(first_image_flag)
     {
@@ -84,6 +84,20 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
     //color_depth has encoding RGB8
     cv_bridge::CvImageConstPtr color_depth_ptr;
     color_depth_ptr = cv_bridge::toCvCopy(color_depth_msg, sensor_msgs::image_encodings::MONO8);
+    //color_depth_depth has encoding 16UC1
+    cv_bridge::CvImageConstPtr color_depth_depth_ptr;
+    {
+        sensor_msgs::Image img;
+        img.header = color_depth_depth_msg->header;
+        img.height = color_depth_depth_msg->height;
+        img.width = color_depth_depth_msg->width;
+        img.is_bigendian = color_depth_depth_msg->is_bigendian;
+        img.step = color_depth_depth_msg->step;
+        img.data = color_depth_depth_msg->data;
+        img.encoding = sensor_msgs::image_encodings::MONO16;
+        color_depth_depth_ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO16);
+    }
+
     //depth has encoding TYPE_16UC1
     cv_bridge::CvImageConstPtr depth_ptr;
     // debug use     std::cout<<depth_msg->encoding<<std::endl;
@@ -106,7 +120,7 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
         ROS_DEBUG("processing camera %d", i);
         if (i != 1 || !STEREO_TRACK)
         {
-            trackerData[i].readImage(ptr->image.rowRange(ROW * i, ROW * (i + 1)), color_depth_ptr->image.rowRange(ROW * i, ROW * (i + 1)), depth_ptr->image.rowRange(ROW * i, ROW * (i + 1)), color_msg->header.stamp.toSec());
+            trackerData[i].readImage(ptr->image.rowRange(ROW * i, ROW * (i + 1)), color_depth_ptr->image.rowRange(ROW * i, ROW * (i + 1)), color_depth_depth_ptr->image.rowRange(ROW * i, ROW * (i + 1)), depth_ptr->image.rowRange(ROW * i, ROW * (i + 1)), color_msg->header.stamp.toSec());
         }
         else
         {
@@ -350,12 +364,13 @@ int main(int argc, char **argv)
     //     https://blog.csdn.net/zyh821351004/article/details/47758433
     message_filters::Subscriber<sensor_msgs::Image> sub_image(n, IMAGE_TOPIC, 1);
     message_filters::Subscriber<sensor_msgs::Image> sub_color_depth(n, DEPTH_COLOR_TOPIC, 1);
+    message_filters::Subscriber<sensor_msgs::Image> sub_color_depth_depth(n, DEPTH_COLOR_DEPTH_TOPIC, 1);
     message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, DEPTH_TOPIC, 1);
 //    message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> sync(sub_image, sub_depth, 100);
     // use ApproximateTime to fit fisheye camera
-    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,sensor_msgs::Image,sensor_msgs::Image> syncPolicy;
-    message_filters::Synchronizer<syncPolicy> sync(syncPolicy(10), sub_image, sub_color_depth, sub_depth);
-    sync.registerCallback(boost::bind(&img_callback, _1, _2, _3));
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,sensor_msgs::Image,sensor_msgs::Image,sensor_msgs::Image> syncPolicy;
+    message_filters::Synchronizer<syncPolicy> sync(syncPolicy(10), sub_image, sub_color_depth, sub_color_depth_depth, sub_depth);
+    sync.registerCallback(boost::bind(&img_callback, _1, _2, _3, _4));
 
     //有图像发布到IMAGE_TOPIC，执行img_callback     100: queue size
     //ros::Subscriber sub_img = n.subscribe(IMAGE_TOPIC, 100, img_callback);

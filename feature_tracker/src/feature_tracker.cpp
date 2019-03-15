@@ -132,7 +132,7 @@ void FeatureTracker::addPoints()
     }
 }
 
-void FeatureTracker::readImage(const cv::Mat &_img, const cv::Mat &_color_depth, const cv::Mat &_depth, double _cur_time)
+void FeatureTracker::readImage(const cv::Mat &_img, const cv::Mat &_color_depth, const cv::Mat &_color_depth_depth, const cv::Mat &_depth, double _cur_time)
 {
     cv::Mat img;
     TicToc t_r;
@@ -155,6 +155,7 @@ void FeatureTracker::readImage(const cv::Mat &_img, const cv::Mat &_color_depth,
         prev_img = cur_img = forw_img = img;
         prev_depth = cur_depth = forw_depth = _depth;
         prev_color_depth = cur_color_depth = forw_color_depth = _color_depth;
+
     }
     else
     {
@@ -162,6 +163,7 @@ void FeatureTracker::readImage(const cv::Mat &_img, const cv::Mat &_color_depth,
         forw_depth = _depth;
         forw_color_depth = _color_depth;
     }
+    forw_color_depth_depth = _color_depth_depth;
 
     forw_pts.clear();
     forw_pts_depth.clear();
@@ -211,10 +213,10 @@ void FeatureTracker::readImage(const cv::Mat &_img, const cv::Mat &_color_depth,
         forw_pts_depth_aligned.clear();
         for (unsigned int i = 0; i < forw_pts_depth.size(); i++)
         {
-            int ff = (int)forw_depth.at<unsigned short>(floor(forw_pts_depth[i].y), floor(forw_pts_depth[i].x));
-            int cf = (int)forw_depth.at<unsigned short>(floor(forw_pts_depth[i].y), ceil(forw_pts_depth[i].x));
-            int fc = (int)forw_depth.at<unsigned short>(ceil(forw_pts_depth[i].y), floor(forw_pts_depth[i].x));
-            int cc = (int)forw_depth.at<unsigned short>(ceil(forw_pts_depth[i].y), ceil(forw_pts_depth[i].x));
+            int ff = (int)forw_color_depth_depth.at<unsigned short>(floor(forw_pts_depth[i].y), floor(forw_pts_depth[i].x));
+            int cf = (int)forw_color_depth_depth.at<unsigned short>(floor(forw_pts_depth[i].y), ceil(forw_pts_depth[i].x));
+            int fc = (int)forw_color_depth_depth.at<unsigned short>(ceil(forw_pts_depth[i].y), floor(forw_pts_depth[i].x));
+            int cc = (int)forw_color_depth_depth.at<unsigned short>(ceil(forw_pts_depth[i].y), ceil(forw_pts_depth[i].x));
             int count = ((int)(ff > 0) + (int)(cf > 0) + (int)(fc > 0) + (int)(cc > 0));
             double avg_depth = count > 0 ? (ff + cf + fc + cc) / count:0;
             if (avg_depth == 0.0)

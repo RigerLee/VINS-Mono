@@ -55,13 +55,14 @@ class FeaturePerId
     bool is_margin;
     double estimated_depth;
     double measured_depth; //shan add
+    int estimate_flag;//shan add , 0 initial; 1 by depth image; 2 by triangulate
     int solve_flag; // 0 haven't solve yet; 1 solve succ; 2 solve fail;
 
     Vector3d gt_p;
 
     FeaturePerId(int _feature_id, int _start_frame, double _measured_depth)
         : feature_id(_feature_id), start_frame(_start_frame),
-          used_num(0), estimated_depth(-1.0), measured_depth(_measured_depth), solve_flag(0)
+          used_num(0), estimated_depth(-1.0), measured_depth(_measured_depth), solve_flag(0),estimate_flag(0)
     {
     }
 
