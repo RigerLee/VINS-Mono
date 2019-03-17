@@ -312,7 +312,7 @@ void FeatureManager::triangulateWithDepth(Vector3d Ps[], Vector3d tic[], Matrix3
         {
             Eigen::Vector3d t0 = Ps[start_frame+i] + Rs[start_frame+i] * tic[0]; //shan: t0 -> twc0
             Eigen::Matrix3d R0 = Rs[start_frame+i] * ric[0];                     //shan: R0 -> Rwc0
-            if (it_per_id.feature_per_frame[i].depth < 0.1 || it_per_id.feature_per_frame[i].depth >10) //shan max and min measurement
+            if (it_per_id.feature_per_frame[i].depth < 0.1 || it_per_id.feature_per_frame[i].depth > 3) //shan max and min measurement
                 continue;
             Eigen::Vector3d point0(it_per_id.feature_per_frame[i].point * it_per_id.feature_per_frame[i].depth);// shan:应该不用考虑depth=0，因为那时残差肯定很大,更新：要考虑，万一两个都是0导致的参差为0，有可能？保险起见
 
@@ -333,7 +333,7 @@ void FeatureManager::triangulateWithDepth(Vector3d Ps[], Vector3d tic[], Matrix3
                 Eigen::Vector3d point1_projected = R20.transpose() * point0 - R20.transpose() * t20;
                 Eigen::Vector2d point1_2d(it_per_id.feature_per_frame[j].point.x(), it_per_id.feature_per_frame[j].point.y());
                 Eigen::Vector2d residual = point1_2d - Vector2d(point1_projected.x() / point1_projected.z(), point1_projected.y() / point1_projected.z());
-                if (residual.norm() < 1.0 / 460) {
+                if (residual.norm() < 10.0 / 460) {
                     Eigen::Vector3d point_r = R2r * point0 + t2r;
                     verified_depths.push_back(point_r.z());
                 }
