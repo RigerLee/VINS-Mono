@@ -175,6 +175,8 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         {
             cur_kf->point_3d_depth[pcl_count_temp] = pcl;
             octree->addPointToCloud(searchPoint, cloud);
+            // Uncomment this to get pointcloud
+            //save_cloud->points.push_back(searchPoint);
             ++pcl_count_temp;
         }
     }
@@ -763,6 +765,7 @@ void PoseGraph::updatePath()
     //some clean up
     octree->deleteTree();
     cloud->clear();
+    save_cloud->clear();
     octree->setInputCloud(cloud);
     octree->addPointsFromInputCloud();
     octree->defineBoundingBox(-100, -100, -100, 100, 100, 100);
@@ -784,6 +787,8 @@ void PoseGraph::updatePath()
             if (octree->getVoxelDensityAtPoint(searchPoint) < 6)
             {
                 octree->addPointToCloud(searchPoint, cloud);
+                // Uncomment this to get pointcloud
+                //save_cloud->points.push_back(searchPoint);
             }
         }
         tmp_RTlist.pop();

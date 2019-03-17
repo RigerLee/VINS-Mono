@@ -516,6 +516,14 @@ void command()
             posegraph.pclFilter(false);
             printf("pclFilter time: %f", t_filter.toc());
         }
+        if (c == 'd')
+        {
+            TicToc t_pcdfile;
+            posegraph.save_cloud->width = posegraph.save_cloud->points.size();
+            posegraph.save_cloud->height = 1;
+	        pcl::io::savePCDFileASCII("/home/riger/pcd_file_"+to_string(frame_index)+"keyframes.pcd", *(posegraph.save_cloud));
+            printf("Save pcd file done! Time cost: %f", t_pcdfile.toc());
+        }
         std::chrono::milliseconds dura(5);
         std::this_thread::sleep_for(dura);
     }
@@ -564,6 +572,7 @@ int main(int argc, char **argv)
         //OctreePointCloudDensity has no ::Ptr
 		posegraph.octree = new pcl::octree::OctreePointCloudDensity<pcl::PointXYZ>(RESOLUTION);
 	    posegraph.cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
+        posegraph.save_cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
 		posegraph.octree->setInputCloud(posegraph.cloud);
         posegraph.octree->addPointsFromInputCloud();
 		// in pcl 1.8.0+, need to set bbox (isVoxelOccupiedAtPoint will check bbox)

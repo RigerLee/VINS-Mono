@@ -30,6 +30,7 @@
 #include <pcl/point_cloud.h>
 #include <pcl/octree/octree.h>
 #include <pcl/octree/octree_impl.h>
+#include <pcl/io/pcd_io.h>
 
 #define SHOW_S_EDGE false
 #define SHOW_L_EDGE false
@@ -66,6 +67,8 @@ public:
 	Matrix3d w_r_vio;
     pcl::octree::OctreePointCloudDensity<pcl::PointXYZ>* octree;
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr save_cloud;
+
 
 private:
 	int detectLoop(KeyFrame* keyframe, int frame_index);
