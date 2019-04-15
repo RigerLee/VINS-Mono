@@ -61,7 +61,22 @@ void img_callback(const sensor_msgs::ImageConstPtr &img_msg)
     else
         PUB_THIS_FRAME = false;
 
-    cv_bridge::CvImageConstPtr ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::MONO8);
+    cv_bridge::CvImageConstPtr ptr;
+    if (img_msg->encoding == "8UC1")
+    {
+        sensor_msgs::Image img;
+        img.header = img_msg->header;
+        img.height = img_msg->height;
+        img.width = img_msg->width;
+        img.is_bigendian = img_msg->is_bigendian;
+        img.step = img_msg->step;
+        img.data = img_msg->data;
+        img.encoding = "mono8";
+        ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8);
+    }
+    else
+        ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::MONO8);
+
     cv::Mat show_img = ptr->image;
     TicToc t_r;
     for (int i = 0; i < NUM_OF_CAM; i++)
@@ -152,7 +167,6 @@ void img_callback(const sensor_msgs::ImageConstPtr &img_msg)
         if (SHOW_TRACK)
         {
             ptr = cv_bridge::cvtColor(ptr, sensor_msgs::image_encodings::BGR8);
-
             //cv::Mat stereo_img(ROW * NUM_OF_CAM, COL, CV_8UC3);
             cv::Mat stereo_img = ptr->image;
 
@@ -229,3 +243,4 @@ int main(int argc, char **argv)
 
 
 // new points velocity is 0, pub or not?
+// track cnt > 1 pub?

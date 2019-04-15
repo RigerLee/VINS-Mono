@@ -4,7 +4,6 @@ Estimator::Estimator(): f_manager{Rs}
 {
     ROS_INFO("init begins");
     clearState();
-    failure_occur = 0;
 }
 
 void Estimator::setParameter()
@@ -34,9 +33,7 @@ void Estimator::clearState()
         angular_velocity_buf[i].clear();
 
         if (pre_integrations[i] != nullptr)
-        {
             delete pre_integrations[i];
-        }
         pre_integrations[i] = nullptr;
     }
 
@@ -44,6 +41,15 @@ void Estimator::clearState()
     {
         tic[i] = Vector3d::Zero();
         ric[i] = Matrix3d::Identity();
+    }
+
+    for (auto &it : all_image_frame)
+    {
+        if (it.second.pre_integration != nullptr)
+        {
+            delete it.second.pre_integration;
+            it.second.pre_integration = nullptr;
+        }
     }
 
     solver_flag = INITIAL;
@@ -67,6 +73,12 @@ void Estimator::clearState()
     last_marginalization_parameter_blocks.clear();
 
     f_manager.clearState();
+
+    failure_occur = 0;
+    relocalization_info = 0;
+
+    drift_correct_r = Matrix3d::Identity();
+    drift_correct_t = Vector3d::Zero();
 }
 
 void Estimator::processIMU(double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity)
@@ -581,6 +593,29 @@ void Estimator::double2vector()
     f_manager.setDepth(dep);
     if (ESTIMATE_TD)
         td = para_Td[0][0];
+
+    // relative info between two loop frame
+    if(relocalization_info)
+    { 
+        Matrix3d relo_r;
+        Vector3d relo_t;
+        relo_r = rot_diff * Quaterniond(relo_Pose[6], relo_Pose[3], relo_Pose[4], relo_Pose[5]).normalized().toRotationMatrix();
+        relo_t = rot_diff * Vector3d(relo_Pose[0] - para_Pose[0][0],
+                                     relo_Pose[1] - para_Pose[0][1],
+                                     relo_Pose[2] - para_Pose[0][2]) + origin_P0;
+        double drift_correct_yaw;
+        drift_correct_yaw = Utility::R2ypr(prev_relo_r).x() - Utility::R2ypr(relo_r).x();
+        drift_correct_r = Utility::ypr2R(Vector3d(drift_correct_yaw, 0, 0));
+        drift_correct_t = prev_relo_t - drift_correct_r * relo_t;   
+        relo_relative_t = relo_r.transpose() * (Ps[relo_frame_local_index] - relo_t);
+        relo_relative_q = relo_r.transpose() * Rs[relo_frame_local_index];
+        relo_relative_yaw = Utility::normalizeAngle(Utility::R2ypr(Rs[relo_frame_local_index]).x() - Utility::R2ypr(relo_r).x());
+        //cout << "vins relo " << endl;
+        //cout << "vins relative_t " << relo_relative_t.transpose() << endl;
+        //cout << "vins relative_yaw " <<relo_relative_yaw << endl;
+        relocalization_info = 0;    
+
+    }
 }
 
 bool Estimator::failureDetection()
@@ -626,7 +661,7 @@ bool Estimator::failureDetection()
     if (delta_angle > 50)
     {
         ROS_INFO(" big delta_angle ");
-        return true;
+        //return true;
     }
     return false;
 }
@@ -718,7 +753,6 @@ void Estimator::optimization()
                     para[4] = para_Td[0];
                     f_td->check(para);
                     */
-                    
             }
             else
             {
@@ -731,6 +765,40 @@ void Estimator::optimization()
 
     ROS_DEBUG("visual measurement count: %d", f_m_cnt);
     ROS_DEBUG("prepare for ceres: %f", t_prepare.toc());
+
+    if(relocalization_info)
+    {
+        //printf("set relocalization factor! \n");
+        ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+        problem.AddParameterBlock(relo_Pose, SIZE_POSE, local_parameterization);
+        int retrive_feature_index = 0;
+        int feature_index = -1;
+        for (auto &it_per_id : f_manager.feature)
+        {
+            it_per_id.used_num = it_per_id.feature_per_frame.size();
+            if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
+                continue;
+            ++feature_index;
+            int start = it_per_id.start_frame;
+            if(start <= relo_frame_local_index)
+            {   
+                while((int)match_points[retrive_feature_index].z() < it_per_id.feature_id)
+                {
+                    retrive_feature_index++;
+                }
+                if((int)match_points[retrive_feature_index].z() == it_per_id.feature_id)
+                {
+                    Vector3d pts_j = Vector3d(match_points[retrive_feature_index].x(), match_points[retrive_feature_index].y(), 1.0);
+                    Vector3d pts_i = it_per_id.feature_per_frame[0].point;
+                    
+                    ProjectionFactor *f = new ProjectionFactor(pts_i, pts_j);
+                    problem.AddResidualBlock(f, loss_function, para_Pose[start], relo_Pose, para_Ex_Pose[0], para_Feature[feature_index]);
+                    retrive_feature_index++;
+                }     
+            }
+        }
+
+    }
 
     ceres::Solver::Options options;
 
@@ -939,6 +1007,7 @@ void Estimator::slideWindow()
     TicToc t_margin;
     if (marginalization_flag == MARGIN_OLD)
     {
+        double t_0 = Headers[0].stamp.toSec();
         back_R0 = Rs[0];
         back_P0 = Ps[0];
         if (frame_count == WINDOW_SIZE)
@@ -975,11 +1044,20 @@ void Estimator::slideWindow()
 
             if (true || solver_flag == INITIAL)
             {
-                double t_0 = Headers[0].stamp.toSec();
                 map<double, ImageFrame>::iterator it_0;
                 it_0 = all_image_frame.find(t_0);
                 delete it_0->second.pre_integration;
+                it_0->second.pre_integration = nullptr;
+ 
+                for (map<double, ImageFrame>::iterator it = all_image_frame.begin(); it != it_0; ++it)
+                {
+                    if (it->second.pre_integration)
+                        delete it->second.pre_integration;
+                    it->second.pre_integration = NULL;
+                }
+
                 all_image_frame.erase(all_image_frame.begin(), it_0);
+                all_image_frame.erase(t_0);
 
             }
             slideWindowOld();
@@ -1045,6 +1123,25 @@ void Estimator::slideWindowOld()
     }
     else
         f_manager.removeBack();
+}
 
+void Estimator::setReloFrame(double _frame_stamp, int _frame_index, vector<Vector3d> &_match_points, Vector3d _relo_t, Matrix3d _relo_r)
+{
+    relo_frame_stamp = _frame_stamp;
+    relo_frame_index = _frame_index;
+    match_points.clear();
+    match_points = _match_points;
+    prev_relo_t = _relo_t;
+    prev_relo_r = _relo_r;
+    for(int i = 0; i < WINDOW_SIZE; i++)
+    {
+        if(relo_frame_stamp == Headers[i].stamp.toSec())
+        {
+            relo_frame_local_index = i;
+            relocalization_info = 1;
+            for (int j = 0; j < SIZE_POSE; j++)
+                relo_Pose[j] = para_Pose[i][j];
+        }
+    }
 }
 

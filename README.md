@@ -1,10 +1,18 @@
 # VINS-Mono
 ## A Robust and Versatile Monocular Visual-Inertial State Estimator
+
+**11 Jan 2019**: An extension of **VINS**, which supports stereo cameras / stereo cameras + IMU / mono camera + IMU, is published at [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion)
+
 **29 Dec 2017**: New features: Add map merge, pose graph reuse, online temporal calibration function, and support rolling shutter camera. Map reuse videos: 
+
+<a href="https://www.youtube.com/embed/WDpH80nfZes" target="_blank"><img src="http://img.youtube.com/vi/WDpH80nfZes/0.jpg" 
+alt="cla" width="240" height="180" border="10" /></a>
+<a href="https://www.youtube.com/embed/eINyJHB34uU" target="_blank"><img src="http://img.youtube.com/vi/eINyJHB34uU/0.jpg" 
+alt="icra" width="240" height="180" border="10" /></a>
 
 VINS-Mono is a real-time SLAM framework for **Monocular Visual-Inertial Systems**. It uses an optimization-based sliding window formulation for providing high-accuracy visual-inertial odometry. It features efficient IMU pre-integration with bias correction, automatic estimator initialization, online extrinsic calibration, failure detection and recovery, loop detection, and global pose graph optimization, map merge, pose graph reuse, online temporal calibration, rolling shutter support. VINS-Mono is primarily designed for state estimation and feedback control of autonomous drones, but it is also capable of providing accurate localization for AR applications. This code runs on **Linux**, and is fully integrated with **ROS**. For **iOS** mobile implementation, please go to [VINS-Mobile](https://github.com/HKUST-Aerial-Robotics/VINS-Mobile).
 
-**Authors:** [Tong Qin](https://github.com/qintony), [Peiliang Li](https://github.com/PeiliangLi), [Zhenfei Yang](https://github.com/dvorak0), and [Shaojie Shen](http://www.ece.ust.hk/ece.php/profile/facultydetail/eeshaojie) from the [HUKST Aerial Robotics Group](http://uav.ust.hk/)
+**Authors:** [Tong Qin](http://www.qintonguav.com), [Peiliang Li](https://github.com/PeiliangLi), [Zhenfei Yang](https://github.com/dvorak0), and [Shaojie Shen](http://www.ece.ust.hk/ece.php/profile/facultydetail/eeshaojie) from the [HUKST Aerial Robotics Group](http://uav.ust.hk/)
 
 **Videos:**
 
@@ -25,26 +33,12 @@ alt="Mobile platform" width="240" height="180" border="10" /></a>
  MAV application;               Mobile implementation (Video link for mainland China friends: [Video1](http://www.bilibili.com/video/av10813254/) [Video2](http://www.bilibili.com/video/av10813205/) [Video3](http://www.bilibili.com/video/av10813089/) [Video4](http://www.bilibili.com/video/av10813325/) [Video5](http://www.bilibili.com/video/av10813030/))
 
 **Related Papers**
-* **VINS-Mono: A Robust and Versatile Monocular Visual-Inertial State Estimator**, Tong Qin, Peiliang Li, Zhenfei Yang, Shaojie Shen [arXiv:1708.03852](https://arxiv.org/abs/1708.03852v1) 
-* **Autonomous Aerial Navigation Using Monocular Visual-Inertial Fusion**, Yi Lin, Fei Gao, Tong Qin, Wenliang Gao, Tianbo Liu, William Wu, Zhenfei Yang, Shaojie Shen, J Field Robotics. 2017;00:1–29. [https://doi.org/10.1002/rob.21732](https://doi.org/10.1002/rob.21732)  
-```
-@article{qin2017vins,
-  title={VINS-Mono: A Robust and Versatile Monocular Visual-Inertial State Estimator},
-  author={Qin, Tong and Li, Peiliang and Shen, Shaojie},
-  journal={arXiv preprint arXiv:1708.03852},
-  year={2017}
-}
-```
-```
-@article{Lin17,
-  Author = {Y. Lin and F. Gao and T. Qin and W. Gao and T. Liu and W. Wu and Z. Yang and S. Shen},
-  Journal = jfr,
-  Title = {Autonomous Aerial Navigation Using Monocular Visual-Inertial Fusion},  
-  Volume = {00},
-  Pages = {1-29},
-  Year = {2017}} 
-```
-*If you use VINS-Mono for your academic research, please cite at least one of our related papers.*
+
+* **Online Temporal Calibration for Monocular Visual-Inertial Systems**, Tong Qin, Shaojie Shen, IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS, 2018), **best student paper award** [pdf](https://ieeexplore.ieee.org/abstract/document/8593603)
+
+* **VINS-Mono: A Robust and Versatile Monocular Visual-Inertial State Estimator**, Tong Qin, Peiliang Li, Zhenfei Yang, Shaojie Shen, IEEE Transactions on Robotics[pdf](https://ieeexplore.ieee.org/document/8421746/?arnumber=8421746&source=authoralert) 
+
+*If you use VINS-Mono for your academic research, please cite at least one of our related papers.*[bib](https://github.com/HKUST-Aerial-Robotics/VINS-Mono/blob/master/support_files/paper_bib.txt)
 
 ## 1. Prerequisites
 1.1 **Ubuntu** and **ROS**
@@ -146,11 +140,21 @@ For rolling shutter camera (carefully calibrated, reprojection error under 0.5 p
 
 (global shutter camera + synchronized high-end IMU, e.g. VI-Sensor) > (global shutter camera + synchronized low-end IMU) > (global camera + unsync high frequency IMU) > (global camera + unsync low frequency IMU) > (rolling camera + unsync low frequency IMU). 
 
+## 6. Docker Support
 
-## 6. Acknowledgements
+To further facilitate the building process, we add docker in our code. Docker environment is like a sandbox, thus makes our code environment-independent. To run with docker, first make sure [ros](http://wiki.ros.org/ROS/Installation) and [docker](https://docs.docker.com/install/linux/docker-ce/ubuntu/) are installed on your machine. Then add your account to `docker` group by `sudo usermod -aG docker $YOUR_USER_NAME`. **Relaunch the terminal or logout and re-login if you get `Permission denied` error**, type:
+```
+cd ~/catkin_ws/src/VINS-Mono/docker
+make build
+./run.sh LAUNCH_FILE_NAME   # ./run.sh euroc.launch
+```
+Note that the docker building process may take a while depends on your network and machine. After VINS-Mono successfully started, open another terminal and play your bag file, then you should be able to see the result. If you need modify the code, simply run `./run.sh LAUNCH_FILE_NAME` after your changes.
+
+
+## 7. Acknowledgements
 We use [ceres solver](http://ceres-solver.org/) for non-linear optimization and [DBoW2](https://github.com/dorian3d/DBoW2) for loop detection, and a generic [camera model](https://github.com/hengli/camodocal).
 
-## 7. Licence
+## 8. Licence
 The source code is released under [GPLv3](http://www.gnu.org/licenses/) license.
 
 We are still working on improving the code reliability. For any technical issues, please contact Tong QIN <tong.qinATconnect.ust.hk> or Peiliang LI <pliapATconnect.ust.hk>.

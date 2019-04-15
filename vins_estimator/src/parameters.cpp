@@ -60,6 +60,10 @@ void readParameters(ros::NodeHandle &n)
     fsSettings["output_path"] >> OUTPUT_PATH;
     VINS_RESULT_PATH = OUTPUT_PATH + "/vins_result_no_loop.csv";
     std::cout << "result path " << VINS_RESULT_PATH << std::endl;
+
+    // create folder if not exists
+    FileSystemHelper::createDirectoryIfNotExists(OUTPUT_PATH.c_str());
+
     std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
     fout.close();
 
@@ -121,9 +125,8 @@ void readParameters(ros::NodeHandle &n)
     ROLLING_SHUTTER = fsSettings["rolling_shutter"];
     if (ROLLING_SHUTTER)
     {
-        TR = fsSettings["rolling_shutter_tr, please set read out time according to the data sheet."];
-        ROS_INFO_STREAM("rolling shutter camera, whole read out time: " << TR);
-        ROS_INFO_STREAM("rolling shutter camera, read out time per line: " << TR / ROW);
+        TR = fsSettings["rolling_shutter_tr"];
+        ROS_INFO_STREAM("rolling shutter camera, read out time per line: " << TR);
     }
     else
     {
