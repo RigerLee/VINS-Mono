@@ -52,7 +52,7 @@ public:
 	Vector3d t_drift;
 	double yaw_drift;
 	Matrix3d r_drift;
-	// world frame( base sequence or first sequence)<----> cur sequence frame  
+	// world frame( base sequence or first sequence)<----> cur sequence frame
 	Vector3d w_t_vio;
 	Matrix3d w_r_vio;
 
@@ -84,6 +84,7 @@ private:
 	ros::Publisher pub_base_path;
 	ros::Publisher pub_pose_graph;
 	ros::Publisher pub_path[10];
+	ros::Publisher pub_odom, pub_pcl_update;
 };
 
 template <typename T>
@@ -114,7 +115,7 @@ class AngleLocalParameterization {
   }
 };
 
-template <typename T> 
+template <typename T>
 void YawPitchRollToRotationMatrix(const T yaw, const T pitch, const T roll, T R[9])
 {
 
@@ -134,7 +135,7 @@ void YawPitchRollToRotationMatrix(const T yaw, const T pitch, const T roll, T R[
 	R[8] = cos(p) * cos(r);
 };
 
-template <typename T> 
+template <typename T>
 void RotationMatrixTranspose(const T R[9], T inv_R[9])
 {
 	inv_R[0] = R[0];
@@ -148,7 +149,7 @@ void RotationMatrixTranspose(const T R[9], T inv_R[9])
 	inv_R[8] = R[8];
 };
 
-template <typename T> 
+template <typename T>
 void RotationMatrixRotatePoint(const T R[9], const T t[3], T r_t[3])
 {
 	r_t[0] = R[0] * t[0] + R[1] * t[1] + R[2] * t[2];
@@ -188,7 +189,7 @@ struct FourDOFError
 	}
 
 	static ceres::CostFunction* Create(const double t_x, const double t_y, const double t_z,
-									   const double relative_yaw, const double pitch_i, const double roll_i) 
+									   const double relative_yaw, const double pitch_i, const double roll_i)
 	{
 	  return (new ceres::AutoDiffCostFunction<
 	          FourDOFError, 4, 1, 3, 1, 3>(
@@ -234,7 +235,7 @@ struct FourDOFWeightError
 	}
 
 	static ceres::CostFunction* Create(const double t_x, const double t_y, const double t_z,
-									   const double relative_yaw, const double pitch_i, const double roll_i) 
+									   const double relative_yaw, const double pitch_i, const double roll_i)
 	{
 	  return (new ceres::AutoDiffCostFunction<
 	          FourDOFWeightError, 4, 1, 3, 1, 3>(

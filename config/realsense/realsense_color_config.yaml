@@ -1,50 +1,54 @@
 %YAML:1.0
 
 #common parameters
-imu_topic: "/camera/imu/data_raw"
+imu_topic: "/camera/imu"
 image_topic: "/camera/color/image_raw"
-output_path: "/home/tony-ws1/output/"
+depth_topic: "/camera/aligned_depth_to_color/image_raw"
+output_path: "/home/riger/output/"
 
-#camera calibration 
+
+#camera calibration
 model_type: PINHOLE
 camera_name: camera
 image_width: 640
 image_height: 480
+  #TODO modify distortion
+
 distortion_parameters:
-   k1: 9.2615504465028850e-02
-   k2: -1.8082438825995681e-01
-   p1: -6.5484100374765971e-04
-   p2: -3.5829351558557421e-04
+   k1: 1.25323e-01
+   k2: -2.51452e-01
+   p1: 7.12e-04
+   p2: 6.217e-03
 projection_parameters:
-   fx: 6.0970550296798035e+02
-   fy: 6.0909579671294716e+02
-   cx: 3.1916667152289227e+02
-   cy: 2.3558360480225772e+02
+   fx: 6.165911254882812e+02
+   fy: 6.166796264648438e+02
+   cx: 3.242193603515625e+02
+   cy: 2.3942701721191406e+02
 
 # Extrinsic parameter between IMU and Camera.
 estimate_extrinsic: 0   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
                         # 1  Have an initial guess about extrinsic parameters. We will optimize around your initial guess.
-                        # 2  Don't know anything about extrinsic parameters. You don't need to give R,T. We will try to calibrate it. Do some rotation movement at beginning.                        
+                        # 2  Don't know anything about extrinsic parameters. You don't need to give R,T. We will try to calibrate it. Do some rotation movement at beginning.
 #If you choose 0 or 1, you should write down the following matrix.
 #Rotation from camera frame to imu frame, imu^R_cam
 extrinsicRotation: !!opencv-matrix
    rows: 3
    cols: 3
    dt: d
-   data: [ 0.99964621,  0.01105994,  0.02418954,
-           -0.01088975,  0.9999151,  -0.00715601, 
-           -0.02426663,  0.00689006,  0.99968178]
+   data: [  0.0008748, -0.0047406,  0.9999884,
+           -0.9999681, -0.0079460,  0.0008371,
+            0.0079419, -0.9999572, -0.0047474 ]    
 #Translation from camera frame to imu frame, imu^T_cam
 extrinsicTranslation: !!opencv-matrix
    rows: 3
    cols: 1
    dt: d
-   data: [0.07494282, -0.01077138, -0.00641822]
+   data: [1.30441e-05, 0.0149225, 0.000316835]
 
 #feature traker paprameters
-max_cnt: 150            # max feature number in feature tracking
-min_dist: 25            # min distance between two features 
-freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
+max_cnt: 200           # max feature number in feature tracking
+min_dist: 15            # min distance between two features
+freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image
 F_threshold: 1.0        # ransac threshold (pixel)
 show_track: 1           # publish tracking image as topic
 equalize: 0             # if image is too dark or light, trun on equalize to find enough features
@@ -66,7 +70,7 @@ g_norm: 9.805       # gravity magnitude
 loop_closure: 1                    # start loop closure
 fast_relocalization: 1             # useful in real-time and large project
 load_previous_pose_graph: 0        # load and reuse previous pose graph; load from 'pose_graph_save_path'
-pose_graph_save_path: "/home/tony-ws1/output/pose_graph/" # save and load path
+pose_graph_save_path: "/home/riger/output/pose_graph/" # save and load path
 
 #unsynchronization parameters
 estimate_td: 1                      # online estimate time offset between camera and imu
@@ -74,9 +78,9 @@ td: 0.000                           # initial value of time offset. unit: s. rea
 
 #rolling shutter parameters
 rolling_shutter: 1                      # 0: global shutter camera, 1: rolling shutter camera
-rolling_shutter_tr: 0.033               # unit: s. rolling shutter read out time per frame (from data sheet). 
+rolling_shutter_tr: 0.033               # unit: s. rolling shutter read out time per frame (from data sheet).
 
 #visualization parameters
-save_image: 1                   # save image in pose graph for visualization prupose; you can close this function by setting 0 
+save_image: 1                   # save image in pose graph for visualization prupose; you can close this function by setting 0
 visualize_imu_forward: 0        # output imu forward propogation to achieve low latency and high frequence results
 visualize_camera_size: 0.4      # size of camera marker in RVIZ
