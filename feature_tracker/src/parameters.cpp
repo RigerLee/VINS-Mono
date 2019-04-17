@@ -1,11 +1,9 @@
 #include "parameters.h"
 
 std::string IMAGE_TOPIC;
-std::string DEPTH_COLOR_TOPIC, DEPTH_COLOR_DEPTH_TOPIC;
 std::string DEPTH_TOPIC;
 std::string IMU_TOPIC;
 std::vector<std::string> CAM_NAMES;
-std::vector<std::string> CAM_DEPTH_NAMES;
 std::string FISHEYE_MASK;
 int MAX_CNT;
 int MIN_DIST;
@@ -39,9 +37,8 @@ T readParam(ros::NodeHandle &n, std::string name)
 
 void readParameters(ros::NodeHandle &n)
 {
-    std::string config_file, depth_config_file;
+    std::string config_file;
     config_file = readParam<std::string>(n, "config_file");
-    depth_config_file = readParam<std::string>(n, "depth_config_file");
     cv::FileStorage fsSettings(config_file, cv::FileStorage::READ);
     if(!fsSettings.isOpened())
     {
@@ -50,8 +47,6 @@ void readParameters(ros::NodeHandle &n)
     std::string VINS_FOLDER_PATH = readParam<std::string>(n, "vins_folder");
 
     fsSettings["image_topic"] >> IMAGE_TOPIC;
-    fsSettings["depth_color_topic"] >> DEPTH_COLOR_TOPIC;
-    fsSettings["depth_color_depth_topic"] >> DEPTH_COLOR_DEPTH_TOPIC;
     fsSettings["depth_topic"] >> DEPTH_TOPIC;
     fsSettings["imu_topic"] >> IMU_TOPIC;
     MAX_CNT = fsSettings["max_cnt"];
@@ -66,7 +61,7 @@ void readParameters(ros::NodeHandle &n)
     if (FISHEYE == 1)
         FISHEYE_MASK = VINS_FOLDER_PATH + "config/fisheye_mask.jpg";
     CAM_NAMES.push_back(config_file);
-    CAM_DEPTH_NAMES.push_back(depth_config_file);
+
     WINDOW_SIZE = 20;
     STEREO_TRACK = false;
     FOCAL_LENGTH = 460;//shan:What's this?---seems a virtual focal used in rejectWithF.

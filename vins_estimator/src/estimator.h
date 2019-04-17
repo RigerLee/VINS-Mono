@@ -77,8 +77,8 @@ class Estimator
     Matrix3d ric[NUM_OF_CAM];
     Vector3d tic[NUM_OF_CAM];
 
-    //Ps:translation or position?(more like T)   Rs:rotation    corresponding to frames
-	//shan:VIO的状态变量
+
+	//VIO state vector
     Vector3d Ps[(WINDOW_SIZE + 1)];
     Vector3d Vs[(WINDOW_SIZE + 1)];
     Matrix3d Rs[(WINDOW_SIZE + 1)];
@@ -90,7 +90,7 @@ class Estimator
     Vector3d back_P0, last_P, last_P0;
     std_msgs::Header Headers[(WINDOW_SIZE + 1)];
 
-    IntegrationBase *pre_integrations[(WINDOW_SIZE + 1)];//todo:1219
+    IntegrationBase *pre_integrations[(WINDOW_SIZE + 1)];
     Vector3d acc_0, gyr_0;
 
     vector<double> dt_buf[(WINDOW_SIZE + 1)];
@@ -100,9 +100,9 @@ class Estimator
     int frame_count;
     int sum_of_outlier, sum_of_back, sum_of_front, sum_of_invalid;
 
-    FeatureManager f_manager;//todo:1219
-    MotionEstimator m_estimator;//todo:1219
-    InitialEXRotation initial_ex_rotation;//todo:1219
+    FeatureManager f_manager;
+    MotionEstimator m_estimator;
+    InitialEXRotation initial_ex_rotation;
 
     bool first_imu;
     bool is_valid, is_key;
@@ -124,7 +124,7 @@ class Estimator
 
     int loop_window_index;
 
-    MarginalizationInfo *last_marginalization_info;//todo:1219
+    MarginalizationInfo *last_marginalization_info;
     vector<double *> last_marginalization_parameter_blocks;
 
     map<double, ImageFrame> all_image_frame;

@@ -106,18 +106,17 @@ getMeasurements()
     {
         if (imu_buf.empty() || feature_buf.empty())
             return measurements;
-        //IMU最后一个数据的时间要大于图像特征最开始数据的时间
+
         if (!(imu_buf.back()->header.stamp.toSec() > feature_buf.front()->header.stamp.toSec() + estimator.td))
         {
             //ROS_WARN("wait for imu, only should happen at the beginning");
             sum_of_wait++;
             return measurements;
         }
-        //IMU最开始数据的时间要小于图像特征最开始数据的时间
+
         if (!(imu_buf.front()->header.stamp.toSec() < feature_buf.front()->header.stamp.toSec() + estimator.td))
         {
             ROS_WARN("throw img, only should happen at the beginning");
-            //queue   pop = pop front
             feature_buf.pop();
             continue;
         }
@@ -125,13 +124,11 @@ getMeasurements()
         feature_buf.pop();
 
         std::vector<sensor_msgs::ImuConstPtr> IMUs;
-        //把开始时间小于图像特征的imu数据都放到IMUs里
         while (imu_buf.front()->header.stamp.toSec() < img_msg->header.stamp.toSec() + estimator.td)
         {
             IMUs.emplace_back(imu_buf.front());
             imu_buf.pop();
         }
-        //把第一张开始时间大于图像特征的imu数据放到IMUs里
         IMUs.emplace_back(imu_buf.front());
         if (IMUs.empty())
             ROS_WARN("no imu between two image");
@@ -152,7 +149,7 @@ void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
     m_buf.lock();
     imu_buf.push(imu_msg);
     m_buf.unlock();
-    con.notify_one();//shan:this line still not very understand.
+    con.notify_one();
 
     last_imu_t = imu_msg->header.stamp.toSec();
 
@@ -172,7 +169,7 @@ void feature_callback(const sensor_msgs::PointCloudConstPtr &feature_msg)
 {
     if (!init_feature)
     {
-        //skip the first detected feature, which doesn't contain optical flow speed  //shan,seems duplicated with feature tracker
+        //skip the first detected feature, which doesn't contain optical flow speed
         init_feature = 1;
         return;
     }
@@ -217,29 +214,23 @@ void process()
     while (true)
     {
         std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>, sensor_msgs::PointCloudConstPtr>> measurements;
-        //locked at the begining
         std::unique_lock<std::mutex> lk(m_buf);
-        //等待imu_buf和feature_buf接收数据完成就会被唤醒
-        //在提取的过程中回调函数是无法接收数据的
         con.wait(lk, [&]
                  {
-            //vector measurements 包含了一组IMU数据和一帧图像数据(pointcloud)的组合的容器
             return (measurements = getMeasurements()).size() != 0;
                  });
         lk.unlock();
         m_estimator.lock();
-        //可能有多帧图像
         for (auto &measurement : measurements)
         {
             auto img_msg = measurement.second;
             double dx = 0, dy = 0, dz = 0, rx = 0, ry = 0, rz = 0;
-            //针对每一张图像对应的imu
             for (auto &imu_msg : measurement.first)
             {
                 double t = imu_msg->header.stamp.toSec();
                 double img_t = img_msg->header.stamp.toSec() + estimator.td;
                 if (t <= img_t)
-                {
+                { 
                     if (current_time < 0)
                         current_time = t;
                     double dt = t - current_time;
@@ -306,14 +297,14 @@ void process()
 
             TicToc t_s;
             map<int, vector<pair<int, Eigen::Matrix<double, 8, 1>>>> image;
-            //对每一个特征点
+
             for (unsigned int i = 0; i < img_msg->points.size(); i++)
             {
-                //就是特征点id， 0.5 for fun??
+
                 int v = img_msg->channels[0].values[i] + 0.5;
-                //feature_id is the same as v
-                int feature_id = v / NUM_OF_CAM;//shan:how to guarantee correspoding features have same feature_id in multi cameras?
-                //always 0 in my case
+
+                int feature_id = v / NUM_OF_CAM;
+ 
                 int camera_id = v % NUM_OF_CAM;
                 double x = img_msg->points[i].x;
                 double y = img_msg->points[i].y;
@@ -323,17 +314,17 @@ void process()
                 double velocity_x = img_msg->channels[3].values[i];
                 double velocity_y = img_msg->channels[4].values[i];
                 double depth = img_msg->channels[5].values[i] / 1000.0;
-                //确保是归一化
+
                 ROS_ASSERT(z == 1);
                 Eigen::Matrix<double, 8, 1> xyz_uv_velocity_depth;
                 xyz_uv_velocity_depth << x, y, z, p_u, p_v, velocity_x, velocity_y, depth;
                 image[feature_id].emplace_back(camera_id,  xyz_uv_velocity_depth);
             }
-            //视差+滑窗
+
             estimator.processImage(image, img_msg->header);
 
             double whole_t = t_s.toc();
-            //Write out EXTRINSIC and print other info
+
             printStatistics(estimator, whole_t);
             std_msgs::Header header = img_msg->header;
             header.frame_id = "world";
@@ -341,11 +332,11 @@ void process()
             pubOdometry(estimator, header);
             pubKeyPoses(estimator, header);
             pubCameraPose(estimator, header);
-            pubPointCloud(estimator, header);//todo:1221
-            pubTF(estimator, header);//todo:1221
-            pubKeyframe(estimator);//todo:1221
+            pubPointCloud(estimator, header);
+            pubTF(estimator, header);
+            pubKeyframe(estimator);
             if (relo_msg != NULL)
-                pubRelocalization(estimator);//todo:1221
+                pubRelocalization(estimator);
             //ROS_ERROR("end: %f, at %f", img_msg->header.stamp.toSec(), ros::Time::now().toSec());
         }
         m_estimator.unlock();

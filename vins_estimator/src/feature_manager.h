@@ -22,7 +22,7 @@ class FeaturePerFrame
     {
         point.x() = _point(0);
         point.y() = _point(1);
-        point.z() = _point(2);//shan:equal to 1.
+        point.z() = _point(2);
         uv.x() = _point(3);
         uv.y() = _point(4);
         velocity.x() = _point(5);
@@ -40,7 +40,7 @@ class FeaturePerFrame
     MatrixXd A;
     VectorXd b;
     double dep_gradient;
-    double depth;//shan add;
+    double depth;
 };
 
 class FeaturePerId
@@ -54,8 +54,8 @@ class FeaturePerId
     bool is_outlier;
     bool is_margin;
     double estimated_depth;
-    double measured_depth; //shan add
-    int estimate_flag;//shan add , 0 initial; 1 by depth image; 2 by triangulate
+    double measured_depth; 
+    int estimate_flag;//0 initial; 1 by depth image; 2 by triangulate
     int solve_flag; // 0 haven't solve yet; 1 solve succ; 2 solve fail;
 
     Vector3d gt_p;
@@ -83,7 +83,7 @@ class FeatureManager
     bool addFeatureCheckParallax(int frame_count, const map<int, vector<pair<int, Eigen::Matrix<double, 8, 1>>>> &image, double td);
     void debugShow();
     vector<pair<Vector3d, Vector3d>> getCorresponding(int frame_count_l, int frame_count_r);
-    vector<pair<Vector3d, Vector3d>> getCorrespondingWithDepth(int frame_count_l, int frame_count_r);//shan add
+    vector<pair<Vector3d, Vector3d>> getCorrespondingWithDepth(int frame_count_l, int frame_count_r);
 
     //void updateDepth(const VectorXd &x);
     void setDepth(const VectorXd &x);

@@ -29,7 +29,7 @@ bool first_image_flag = true;
 double last_image_time = 0;
 bool init_pub = 0;
 
-void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs::ImageConstPtr &color_depth_msg, const sensor_msgs::ImageConstPtr &color_depth_depth_msg, const sensor_msgs::ImageConstPtr &depth_msg)
+void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs::ImageConstPtr &depth_msg)
 {
     if(first_image_flag)
     {
@@ -81,22 +81,6 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
     }
     else
         ptr = cv_bridge::toCvCopy(color_msg, sensor_msgs::image_encodings::MONO8);
-    //color_depth has encoding RGB8
-    cv_bridge::CvImageConstPtr color_depth_ptr;
-    color_depth_ptr = cv_bridge::toCvCopy(color_depth_msg, sensor_msgs::image_encodings::MONO8);
-    //color_depth_depth has encoding 16UC1
-    cv_bridge::CvImageConstPtr color_depth_depth_ptr;
-    {
-        sensor_msgs::Image img;
-        img.header = color_depth_depth_msg->header;
-        img.height = color_depth_depth_msg->height;
-        img.width = color_depth_depth_msg->width;
-        img.is_bigendian = color_depth_depth_msg->is_bigendian;
-        img.step = color_depth_depth_msg->step;
-        img.data = color_depth_depth_msg->data;
-        img.encoding = sensor_msgs::image_encodings::MONO16;
-        color_depth_depth_ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO16);
-    }
 
     //depth has encoding TYPE_16UC1
     cv_bridge::CvImageConstPtr depth_ptr;
@@ -112,15 +96,19 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
         img.encoding = sensor_msgs::image_encodings::MONO16;
         depth_ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO16);
     }
+
+
     cv::Mat show_img = ptr->image;
     TicToc t_r;
     // init pts here, using readImage()
+
     for (int i = 0; i < NUM_OF_CAM; i++)
     {
         ROS_DEBUG("processing camera %d", i);
         if (i != 1 || !STEREO_TRACK)
         {
-            trackerData[i].readImage(ptr->image.rowRange(ROW * i, ROW * (i + 1)), color_depth_ptr->image.rowRange(ROW * i, ROW * (i + 1)), color_depth_depth_ptr->image.rowRange(ROW * i, ROW * (i + 1)), depth_ptr->image.rowRange(ROW * i, ROW * (i + 1)), color_msg->header.stamp.toSec());
+
+            trackerData[i].readImage(ptr->image.rowRange(ROW * i, ROW * (i + 1)), depth_ptr->image.rowRange(ROW * i, ROW * (i + 1)), color_msg->header.stamp.toSec());
         }
         else
         {
@@ -152,21 +140,6 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
         if (!completed)
             break;
     }
-    for (unsigned int i = 0;; i++)
-    {
-        bool completed = false;
-        for (int j = 0; j < NUM_OF_CAM; j++)
-            if (j != 1 || !STEREO_TRACK)
-                completed |= trackerData[j].updateIDDepth(i);
-        if (!completed)
-            break;
-    }
-    //向estimator发布的点云内容包括：
-    // 特征点在相机坐标系的归一化坐标
-    // 特征点ID
-    // 特征点的图像坐标系坐标
-    // 估算的特征点速度
-    // 对应坐标的深度信息（新加）
     if (PUB_THIS_FRAME)
     {
         //vector<int> test;
@@ -191,14 +164,12 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
             auto &un_pts = trackerData[i].cur_un_pts;
             auto &cur_pts = trackerData[i].cur_pts;
             auto &ids = trackerData[i].ids;
-            cout<<"color ids: ";
             auto &pts_velocity = trackerData[i].pts_velocity;
             for (unsigned int j = 0; j < ids.size(); j++)
             {
                 if (trackerData[i].track_cnt[j] > 1)
                 {
                     int p_id = ids[j];
-                    //cout<<ids[j]<<",";
                     //not used
                     hash_ids[i].insert(p_id);
                     geometry_msgs::Point32 p;
@@ -214,57 +185,13 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
                     velocity_x_of_point.values.push_back(pts_velocity[j].x);
                     velocity_y_of_point.values.push_back(pts_velocity[j].y);
 
-                    int ff = (int)show_depth.at<unsigned short>(floor(cur_pts[j].y), floor(cur_pts[j].x));
-                    int cf = (int)show_depth.at<unsigned short>(floor(cur_pts[j].y), ceil(cur_pts[j].x));
-                    int fc = (int)show_depth.at<unsigned short>(ceil(cur_pts[j].y), floor(cur_pts[j].x));
-                    int cc = (int)show_depth.at<unsigned short>(ceil(cur_pts[j].y), ceil(cur_pts[j].x));
-                    int count = ((int)(ff > 0) + (int)(cf > 0) + (int)(fc > 0) + (int)(cc > 0));
-                    int avg_depth = count > 0 ? (ff + cf + fc + cc) / count:0;
                     //nearest neighbor....fastest  may be changed
                     // show_depth: 480*640   y:[0,480]   x:[0,640]
-                    //depth_of_point.values.push_back((int)show_depth.at<unsigned short>(round(cur_pts[j].y), round(cur_pts[j].x)));
-                    depth_of_point.values.push_back(avg_depth);
+                    depth_of_point.values.push_back((int)show_depth.at<unsigned short>(round(cur_pts[j].y), round(cur_pts[j].x)));
                     //debug use: print depth pixels
                     //test.push_back((int)show_depth.at<unsigned short>(round(cur_pts[j].y),round(cur_pts[j].x)));
                 }
             }
-            cout<<endl;
-            cout<<"depth ids: ";
-            auto &un_pts_depth = trackerData[i].cur_un_pts_depth;
-            auto &cur_pts_depth = trackerData[i].forw_pts_depth_aligned;
-            auto &ids_depth = trackerData[i].ids_depth;
-            auto &pts_velocity_depth = trackerData[i].pts_velocity_depth;
-            for (unsigned int j = 0; j < ids_depth.size(); j++)
-            {
-                if (trackerData[i].track_cnt_depth[j] > 1)
-                {
-                    int p_id = ids_depth[j];
-                    //cout<<ids_depth[j]<<",";
-                    //not used
-                    hash_ids[i].insert(p_id);
-                    geometry_msgs::Point32 p;
-                    p.x = un_pts_depth[j].x;
-                    p.y = un_pts_depth[j].y;
-                    p.z = 1;
-                    // push normalized point to pointcloud
-                    feature_points->points.push_back(p);
-                    // push other info
-                    id_of_point.values.push_back(p_id * NUM_OF_CAM + i);
-                    u_of_point.values.push_back(cur_pts_depth[j].x);
-                    v_of_point.values.push_back(cur_pts_depth[j].y);
-                    velocity_x_of_point.values.push_back(pts_velocity_depth[j].x);
-                    velocity_y_of_point.values.push_back(pts_velocity_depth[j].y);
-
-                    int ff = (int)show_depth.at<unsigned short>(floor(cur_pts_depth[j].y), floor(cur_pts_depth[j].x));
-                    int cf = (int)show_depth.at<unsigned short>(floor(cur_pts_depth[j].y), ceil(cur_pts_depth[j].x));
-                    int fc = (int)show_depth.at<unsigned short>(ceil(cur_pts_depth[j].y), floor(cur_pts_depth[j].x));
-                    int cc = (int)show_depth.at<unsigned short>(ceil(cur_pts_depth[j].y), ceil(cur_pts_depth[j].x));
-                    int count = ((int)(ff > 0) + (int)(cf > 0) + (int)(fc > 0) + (int)(cc > 0));
-                    int avg_depth = count > 0 ? (ff + cf + fc + cc) / count:0;
-                    depth_of_point.values.push_back(avg_depth);
-                }
-            }
-            cout<<endl;
         }
         //debug use: print depth pixels
         //for (int iii = test.size() - 1; iii >= 0; iii--)
@@ -304,12 +231,6 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
                 {
                     double len = std::min(1.0, 1.0 * trackerData[i].track_cnt[j] / WINDOW_SIZE);
                     cv::circle(tmp_img, trackerData[i].cur_pts[j], 2, cv::Scalar(255 * (1 - len), 0, 255 * len), 2);
-                }
-
-                for (unsigned int j = 0; j < trackerData[i].forw_pts_depth_aligned.size(); j++)
-                {
-                    double len = std::min(1.0, 1.0 * trackerData[i].track_cnt_depth[j] / WINDOW_SIZE);
-                    cv::circle(tmp_img, trackerData[i].forw_pts_depth_aligned[j], 2, cv::Scalar(255 * (1 - len), 255 * len, 0), 2);
                     //draw speed line
                     /*
                     Vector2d tmp_cur_un_pts (trackerData[i].cur_un_pts[j].x, trackerData[i].cur_un_pts[j].y);
@@ -331,7 +252,7 @@ void img_callback(const sensor_msgs::ImageConstPtr &color_msg, const sensor_msgs
             pub_match.publish(ptr->toImageMsg());
         }
     }
-    ROS_INFO("whole feature tracker processing costs: %f", t_r.toc());
+    //ROS_INFO("whole feature tracker processing costs: %f", t_r.toc());
 }
 
 int main(int argc, char **argv)
@@ -344,7 +265,7 @@ int main(int argc, char **argv)
 
     //trackerData defined as global parameter   type: FeatureTracker list   size: 1
     for (int i = 0; i < NUM_OF_CAM; i++)
-        trackerData[i].readIntrinsicParameter(CAM_NAMES[i], CAM_DEPTH_NAMES[i]);
+        trackerData[i].readIntrinsicParameter(CAM_NAMES[i]);
 
     if(FISHEYE)
     {
@@ -363,14 +284,12 @@ int main(int argc, char **argv)
     //ref: http://docs.ros.org/api/message_filters/html/c++/classmessage__filters_1_1TimeSynchronizer.html#a9e58750270e40a2314dd91632a9570a6
     //     https://blog.csdn.net/zyh821351004/article/details/47758433
     message_filters::Subscriber<sensor_msgs::Image> sub_image(n, IMAGE_TOPIC, 1);
-    message_filters::Subscriber<sensor_msgs::Image> sub_color_depth(n, DEPTH_COLOR_TOPIC, 1);
-    message_filters::Subscriber<sensor_msgs::Image> sub_color_depth_depth(n, DEPTH_COLOR_DEPTH_TOPIC, 1);
     message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, DEPTH_TOPIC, 1);
 //    message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> sync(sub_image, sub_depth, 100);
     // use ApproximateTime to fit fisheye camera
-    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,sensor_msgs::Image,sensor_msgs::Image,sensor_msgs::Image> syncPolicy;
-    message_filters::Synchronizer<syncPolicy> sync(syncPolicy(10), sub_image, sub_color_depth, sub_color_depth_depth, sub_depth);
-    sync.registerCallback(boost::bind(&img_callback, _1, _2, _3, _4));
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,sensor_msgs::Image> syncPolicy;
+    message_filters::Synchronizer<syncPolicy> sync(syncPolicy(10), sub_image, sub_depth);
+    sync.registerCallback(boost::bind(&img_callback, _1, _2));
 
     //有图像发布到IMAGE_TOPIC，执行img_callback     100: queue size
     //ros::Subscriber sub_img = n.subscribe(IMAGE_TOPIC, 100, img_callback);

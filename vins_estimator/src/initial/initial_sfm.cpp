@@ -127,7 +127,7 @@ void GlobalSFM::triangulateTwoFramesWithDepth(int frame0, Eigen::Matrix<double, 
 		Vector2d point1;
 		for (int k = 0; k < (int)sfm_f[j].observation.size(); k++)
 		{
-			if (sfm_f[j].observation_depth[k].second < 0.1 || sfm_f[j].observation_depth[k].second >10) //shan max and min measurement
+			if (sfm_f[j].observation_depth[k].second < 0.1 || sfm_f[j].observation_depth[k].second >10) //max and min measurement
 				continue;
 			if (sfm_f[j].observation[k].first == frame0)
 			{
@@ -144,13 +144,13 @@ void GlobalSFM::triangulateTwoFramesWithDepth(int frame0, Eigen::Matrix<double, 
 		{
 			Vector2d residual;
 			Vector3d point_3d, point1_reprojected;
-			//triangulatePoint(Pose0, Pose1, point0, point1, point_3d);//todo 要改两个地方的三角化 Done
+			//triangulatePoint(Pose0, Pose1, point0, point1, point_3d);
 			point_3d = Pose0_R.transpose()*point0 - Pose0_R.transpose()*Pose0_t;//shan add:this is point in world;
 			point1_reprojected = Pose1_R*point_3d+Pose1_t;
 
 			residual = point1 - Vector2d(point1_reprojected.x()/point1_reprojected.z(),point1_reprojected.y()/point1_reprojected.z());
 
-			//std::cout << "shan" << residual.transpose()<<"norm"<<residual.norm()*460<<endl;
+			//std::cout << residual.transpose()<<"norm"<<residual.norm()*460<<endl;
 			if (residual.norm() < 1.0/460){
 				sfm_f[j].state = true;
 				sfm_f[j].position[0] = point_3d(0);
@@ -257,7 +257,7 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 			Vector3d point0;
 			Vector2d point1;
 			int frame_0 = sfm_f[j].observation[0].first;
-			if (sfm_f[j].observation_depth[0].second < 0.1 || sfm_f[j].observation_depth[0].second > 10) //shan max and min measurement
+			if (sfm_f[j].observation_depth[0].second < 0.1 || sfm_f[j].observation_depth[0].second > 10) //max and min measurement
 				continue;
 			point0 = Vector3d(sfm_f[j].observation[0].second.x()*sfm_f[j].observation_depth[0].second,sfm_f[j].observation[0].second.y()*sfm_f[j].observation_depth[0].second,sfm_f[j].observation_depth[0].second);
 			int frame_1 = sfm_f[j].observation.back().first;
@@ -265,24 +265,20 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 			Vector3d point_3d;
 			//triangulatePoint(Pose[frame_0], Pose[frame_1], point0, point1, point_3d);
 
-			//shan add
 			Matrix3d Pose0_R = Pose[frame_0].block< 3,3 >(0,0);
 			Matrix3d Pose1_R = Pose[frame_1].block< 3,3 >(0,0);
 			Vector3d Pose0_t = Pose[frame_0].block< 3,1 >(0,3);
 			Vector3d Pose1_t = Pose[frame_1].block< 3,1 >(0,3);
 
-
 			Vector2d residual;
 			Vector3d point1_reprojected;
-			//triangulatePoint(Pose0, Pose1, point0, point1, point_3d);//todo 要改两个地方的三角化
-			point_3d = Pose0_R.transpose()*point0 - Pose0_R.transpose()*Pose0_t;//shan add:this is point in world;
+			//triangulatePoint(Pose0, Pose1, point0, point1, point_3d);
+			point_3d = Pose0_R.transpose()*point0 - Pose0_R.transpose()*Pose0_t;//point in world;
 			point1_reprojected = Pose1_R*point_3d+Pose1_t;
 
 			residual = point1 - Vector2d(point1_reprojected.x()/point1_reprojected.z(),point1_reprojected.y()/point1_reprojected.z());
 
-			//std::cout << "shan" << residual.transpose()<<"norm"<<residual.norm()*460<<endl;
-
-			if (residual.norm() < 1.0/460) {//shan add :if reprojection error small than 1.0
+			if (residual.norm() < 1.0/460) {//reprojection error
 				sfm_f[j].state = true;
 				sfm_f[j].position[0] = point_3d(0);
 				sfm_f[j].position[1] = point_3d(1);
@@ -325,7 +321,7 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 		{
 			problem.SetParameterBlockConstant(c_rotation[i]);
 		}
-		if (i == l || i == frame_num - 1)//shan: why frame_num-1 also set t constant
+		if (i == l || i == frame_num - 1)
 		{
 			problem.SetParameterBlockConstant(c_translation[i]);
 		}

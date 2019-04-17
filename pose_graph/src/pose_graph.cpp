@@ -59,7 +59,6 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         r_drift = Eigen::Matrix3d::Identity();
         m_drift.unlock();
     }
-    // cur_kf 自带一个index   这里改为global_index
     cur_kf->getVioPose(vio_P_cur, vio_R_cur);
     vio_P_cur = w_r_vio * vio_P_cur + w_t_vio;
     vio_R_cur = w_r_vio *  vio_R_cur;
@@ -168,10 +167,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         searchPoint.x = w_pts_i(0);
         searchPoint.y = w_pts_i(1);
         searchPoint.z = w_pts_i(2);
-		//double min_x, min_y, min_z, max_x, max_y, max_z;
-		//(*octree).getBoundingBox(min_x, min_y, min_z, max_x, max_y, max_z);
-		//cout<< min_x << " "<< min_y<< " "<< min_z<< " "<< max_x<< " "<< max_y<< " "<< max_z<<endl;
-        if (octree->getVoxelDensityAtPoint(searchPoint) < 6)
+        if (octree->getVoxelDensityAtPoint(searchPoint) < 5)
         {
             cur_kf->point_3d_depth[pcl_count_temp] = pcl;
             octree->addPointToCloud(searchPoint, cloud);
@@ -360,7 +356,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     //first query; then add this frame into database!
     QueryResults ret;
     TicToc t_query;
-    db.query(keyframe->brief_descriptors, ret, 4, frame_index - 50);//shan set 3000-a large value to disable loop closure
+    db.query(keyframe->brief_descriptors, ret, 4, frame_index - 50);
     //printf("query time: %f", t_query.toc());
     //cout << "Searching for Image " << frame_index << ". " << ret << endl;
 
@@ -420,7 +416,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
         cv::waitKey(20);
     }
 */
-    if (find_loop && frame_index > 50)//shan set 3000-a large value to disable loop closure
+    if (find_loop && frame_index > 50)
     {
         int min_index = -1;
         for (unsigned int i = 0; i < ret.size(); i++)
@@ -630,7 +626,7 @@ void PoseGraph::optimize4DoF()
 
 void PoseGraph::updatePath()
 {
-
+    TicToc t_update;
     // store info for updating dense pcl without locking keyframe list
     // which may take much time
     vector<vector<cv::Point3f>> tmp_keyframelist;
@@ -759,17 +755,17 @@ void PoseGraph::updatePath()
     }
     publish();
     m_keyframelist.unlock();
-
+    
     // throw the costy part beyond m_keyframelist
     m_octree.lock();
     //some clean up
     octree->deleteTree();
     cloud->clear();
-    save_cloud->clear();
+    //save_cloud->clear();
     octree->setInputCloud(cloud);
     octree->addPointsFromInputCloud();
     octree->defineBoundingBox(-100, -100, -100, 100, 100, 100);
-
+    int update_count = 0;
     for (auto &pcl_vect : tmp_keyframelist)
     {
         Vector3d P;
@@ -778,23 +774,23 @@ void PoseGraph::updatePath()
         P = tmp_RTlist.front().second;
         for (auto &pcl : pcl_vect)
         {
+            
             Vector3d pts_i(pcl.x , pcl.y, pcl.z);
             Vector3d w_pts_i = R * (qi_d * pts_i + ti_d) + P;
             pcl::PointXYZ searchPoint;
             searchPoint.x = w_pts_i(0);
             searchPoint.y = w_pts_i(1);
             searchPoint.z = w_pts_i(2);
-            if (octree->getVoxelDensityAtPoint(searchPoint) < 6)
-            {
-                octree->addPointToCloud(searchPoint, cloud);
-                // Uncomment this to get pointcloud
-                //save_cloud->points.push_back(searchPoint);
-            }
+            ++update_count;
+            octree->addPointToCloud(searchPoint, cloud);
+            // Uncomment this to get pointcloud
+            //save_cloud->points.push_back(searchPoint);
         }
         tmp_RTlist.pop();
     }
     pclFilter(true);
     m_octree.unlock();
+    ROS_INFO("Update done! Time cost: %f   total points: %d", t_update.toc(), update_count);
 
 }
 
@@ -855,8 +851,8 @@ void PoseGraph::savePoseGraph()
     string file_path = POSE_GRAPH_SAVE_PATH + "pose_graph.txt";
 //    string file_path_shan_pg = POSE_GRAPH_SAVE_PATH + "stamped_traj_estimate_mono_pg.txt";
 //    string file_path_shan_vio = POSE_GRAPH_SAVE_PATH + "stamped_traj_estimate_mono_vio.txt";
-    string file_path_shan_pg = "/home/riger/rpg_trajectory_evaluation/results/laptop/vio_mono/laptop_vio_mono_MH_01/stamped_traj_estimate.txt";
-    string file_path_shan_vio = "/home/riger/rpg_trajectory_evaluation/results/laptop/vio_mono/laptop_vio_mono_MH_01/vio_stamped_traj_estimate.txt";
+    string file_path_shan_pg = "/home/shanzy/rpg_trajectory_evaluation/results/laptop/vio_mono/laptop_vio_mono_MH_01/stamped_traj_estimate.txt";
+    string file_path_shan_vio = "/home/shanzy/rpg_trajectory_evaluation/results/laptop/vio_mono/laptop_vio_mono_MH_01/vio_stamped_traj_estimate.txt";
     pFile = fopen (file_path.c_str(),"w");
     pFile_shan_pg = fopen(file_path_shan_pg.c_str(),"w");
     pFile_shan_vio = fopen(file_path_shan_vio.c_str(),"w");

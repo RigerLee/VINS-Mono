@@ -2,7 +2,7 @@
 
 int FeaturePerId::endFrame()
 {
-    return start_frame + feature_per_frame.size() - 1;//shan:how to guarantee frames are continuous?answer: guauantee in feature tracking node.
+    return start_frame + feature_per_frame.size() - 1;
 }
 
 FeatureManager::FeatureManager(Matrix3d _Rs[])
@@ -33,7 +33,7 @@ int FeatureManager::getFeatureCount()
 
         it.used_num = it.feature_per_frame.size();
 
-        if (it.used_num >= 2 && it.start_frame < WINDOW_SIZE - 2)//shan:why window_size-2?
+        if (it.used_num >= 2 && it.start_frame < WINDOW_SIZE - 2)
         {
             cnt++;
         }
@@ -49,26 +49,22 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     double parallax_sum = 0;
     int parallax_num = 0;
     last_track_num = 0;
-    //对一张图的所有特征点
     for (auto &id_pts : image)
     {
         //id_pts.second[0].second: Eigen::Matrix<double, 8, 1>
         FeaturePerFrame f_per_fra(id_pts.second[0].second, td);
 
         int feature_id = id_pts.first;
-        //find_if：根据指定的pred运算条件（以仿函数表示），循环查找[first,last)内的所有元素，找出第一个令pred运算结果true者
-        // feature: list<FeaturePerId>, 这里遍历 FeaturePerId， 看这个id是否出现过
         auto it = find_if(feature.begin(), feature.end(), [feature_id](const FeaturePerId &it)
                           {
             return it.feature_id == feature_id;
                           });
-        //之前没有这个id，加到feature
+
         if (it == feature.end())
         {
             feature.push_back(FeaturePerId(feature_id, frame_count, id_pts.second[0].second(7)));
             feature.back().feature_per_frame.push_back(f_per_fra);
         }
-        //找到这个id（特征点）了，把这一帧的特征加入相同id下的feature_per_frame
         else if (it->feature_id == feature_id)
         {
             it->feature_per_frame.push_back(f_per_fra);
@@ -76,7 +72,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
         }
     }
 
-    if (frame_count < 2 || last_track_num < 20)//shan:20 is a magic number?
+    if (frame_count < 2 || last_track_num < 20)
         return true;
 
     for (auto &it_per_id : feature)
@@ -84,7 +80,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
         if (it_per_id.start_frame <= frame_count - 2 &&
             it_per_id.start_frame + int(it_per_id.feature_per_frame.size()) - 1 >= frame_count - 1)
         {
-            parallax_sum += compensatedParallax2(it_per_id, frame_count);//todo:0111 parallaxComputation maybe need to modified since we have true depth.
+            parallax_sum += compensatedParallax2(it_per_id, frame_count);
             parallax_num++;
         }
     }
@@ -143,7 +139,7 @@ vector<pair<Vector3d, Vector3d>> FeatureManager::getCorresponding(int frame_coun
     return corres;
 }
 
-vector<pair<Vector3d, Vector3d>> FeatureManager::getCorrespondingWithDepth(int frame_count_l, int frame_count_r)//shan add
+vector<pair<Vector3d, Vector3d>> FeatureManager::getCorrespondingWithDepth(int frame_count_l, int frame_count_r)
 {
 	vector<pair<Vector3d, Vector3d>> corres;
 	for (auto &it : feature)
@@ -155,10 +151,10 @@ vector<pair<Vector3d, Vector3d>> FeatureManager::getCorrespondingWithDepth(int f
 			int idx_r = frame_count_r - it.start_frame;
 
 			double depth_a = it.feature_per_frame[idx_l].depth;
-			if (depth_a < 0.1 || depth_a > 10)//shan max and min measurement
+			if (depth_a < 0.1 || depth_a > 10)//max and min measurement
 			    continue;
 			double depth_b = it.feature_per_frame[idx_r].depth;
-            if (depth_b < 0.1 || depth_b > 10)//shan max and min measurement
+            if (depth_b < 0.1 || depth_b > 10)//max and min measurement
                 continue;
 			a = it.feature_per_frame[idx_l].point;
 			b = it.feature_per_frame[idx_r].point;
@@ -224,7 +220,7 @@ VectorXd FeatureManager::getDepthVector()
         if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
             continue;
 #if 1
-        dep_vec(++feature_index) = 1. / it_per_id.estimated_depth;//shan:inverse depth
+        dep_vec(++feature_index) = 1. / it_per_id.estimated_depth;
 #else
         dep_vec(++feature_index) = it_per_id->estimated_depth;
 #endif
@@ -232,7 +228,7 @@ VectorXd FeatureManager::getDepthVector()
     return dep_vec;
 }
 
-void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])// shan: 好像是三角化到第一个观测帧坐标系上
+void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
 {
     for (auto &it_per_id : feature)
     {
@@ -249,8 +245,8 @@ void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])/
         int svd_idx = 0;
 
         Eigen::Matrix<double, 3, 4> P0;
-        Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0];    //shan: t0 -> twc
-        Eigen::Matrix3d R0 = Rs[imu_i] * ric[0];                //shan: R0 -> Rwc
+        Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0];
+        Eigen::Matrix3d R0 = Rs[imu_i] * ric[0];
         P0.leftCols<3>() = Eigen::Matrix3d::Identity();
         P0.rightCols<1>() = Eigen::Vector3d::Zero();
 
@@ -260,11 +256,11 @@ void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])/
 
             Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0];
             Eigen::Matrix3d R1 = Rs[imu_j] * ric[0];
-            Eigen::Vector3d t = R0.transpose() * (t1 - t0);    //shan: t -> tc0c1
-            Eigen::Matrix3d R = R0.transpose() * R1;           //shan: R -> Rc0c1
+            Eigen::Vector3d t = R0.transpose() * (t1 - t0);
+            Eigen::Matrix3d R = R0.transpose() * R1;
             Eigen::Matrix<double, 3, 4> P;
             P.leftCols<3>() = R.transpose();
-            P.rightCols<1>() = -R.transpose() * t;             //shan: P -> Tc1c0
+            P.rightCols<1>() = -R.transpose() * t;
             Eigen::Vector3d f = it_per_frame.point.normalized();
             svd_A.row(svd_idx++) = f[0] * P.row(2) - f[2] * P.row(0);
             svd_A.row(svd_idx++) = f[1] * P.row(2) - f[2] * P.row(1);
@@ -303,22 +299,24 @@ void FeatureManager::triangulateWithDepth(Vector3d Ps[], Vector3d tic[], Matrix3
 
         int start_frame = it_per_id.start_frame;
 
-        vector<double> verified_depths;//todo：shan 就当目前是depth，而不是 逆 深度,待验证 Done
+        vector<double> verified_depths;
 
-        Eigen::Vector3d tr = Ps[start_frame] + Rs[start_frame] * tic[0]; //shan: tr -> twcr
-        Eigen::Matrix3d Rr = Rs[start_frame] * ric[0];                   //shan: Rr -> Rwcr
+        Eigen::Vector3d tr = Ps[start_frame] + Rs[start_frame] * tic[0]; 
+        Eigen::Matrix3d Rr = Rs[start_frame] * ric[0];                   
 
         for (int i=0; i < (int)it_per_id.feature_per_frame.size(); i++)
         {
-            Eigen::Vector3d t0 = Ps[start_frame+i] + Rs[start_frame+i] * tic[0]; //shan: t0 -> twc0
-            Eigen::Matrix3d R0 = Rs[start_frame+i] * ric[0];                     //shan: R0 -> Rwc0
-            if (it_per_id.feature_per_frame[i].depth < 0.1 || it_per_id.feature_per_frame[i].depth > 3) //shan max and min measurement
+            Eigen::Vector3d t0 = Ps[start_frame+i] + Rs[start_frame+i] * tic[0]; 
+            Eigen::Matrix3d R0 = Rs[start_frame+i] * ric[0];
+			double depth_threshold = 3; //for handheld and wheeled application. Since d435i <3 is quiet acc
+			//double depth_threshold = 10; //for tracked application, since IMU quite noisy in this scene             
+			if (it_per_id.feature_per_frame[i].depth < 0.1 || it_per_id.feature_per_frame[i].depth >depth_threshold) 
                 continue;
-            Eigen::Vector3d point0(it_per_id.feature_per_frame[i].point * it_per_id.feature_per_frame[i].depth);// shan:应该不用考虑depth=0，因为那时残差肯定很大,更新：要考虑，万一两个都是0导致的参差为0，有可能？保险起见
+            Eigen::Vector3d point0(it_per_id.feature_per_frame[i].point * it_per_id.feature_per_frame[i].depth);
 
-            //转到参考帧
-            Eigen::Vector3d t2r = Rr.transpose() * (t0 - tr); //shan: t -> tc0c1
-            Eigen::Matrix3d R2r = Rr.transpose() * R0;        //shan: R -> Rc0c1
+            // transform to reference frame
+            Eigen::Vector3d t2r = Rr.transpose() * (t0 - tr);
+            Eigen::Matrix3d R2r = Rr.transpose() * R0;        
 
             for (int j=0; j<(int)it_per_id.feature_per_frame.size(); j++)
             {
@@ -326,14 +324,14 @@ void FeatureManager::triangulateWithDepth(Vector3d Ps[], Vector3d tic[], Matrix3
                     continue;
                 Eigen::Vector3d t1 = Ps[start_frame+j] + Rs[start_frame+j] * tic[0];
                 Eigen::Matrix3d R1 = Rs[start_frame+j] * ric[0];
-                Eigen::Vector3d t20 = R0.transpose() * (t1 - t0); //shan: t -> tc0c1
-                Eigen::Matrix3d R20 = R0.transpose() * R1;        //shan: R -> Rc0c1
+                Eigen::Vector3d t20 = R0.transpose() * (t1 - t0); 
+                Eigen::Matrix3d R20 = R0.transpose() * R1;        
 
 
                 Eigen::Vector3d point1_projected = R20.transpose() * point0 - R20.transpose() * t20;
                 Eigen::Vector2d point1_2d(it_per_id.feature_per_frame[j].point.x(), it_per_id.feature_per_frame[j].point.y());
                 Eigen::Vector2d residual = point1_2d - Vector2d(point1_projected.x() / point1_projected.z(), point1_projected.y() / point1_projected.z());
-                if (residual.norm() < 10.0 / 460) {
+                if (residual.norm() < 10.0 / 460) {//this can also be adjust to improve performance
                     Eigen::Vector3d point_r = R2r * point0 + t2r;
                     verified_depths.push_back(point_r.z());
                 }
@@ -344,7 +342,6 @@ void FeatureManager::triangulateWithDepth(Vector3d Ps[], Vector3d tic[], Matrix3
             continue;
         double depth_sum = std::accumulate(std::begin(verified_depths),std::end(verified_depths),0.0);
         double depth_ave = depth_sum / verified_depths.size();
-//        cout << "|||||||";
 //        for (int i=0;i<(int)verified_depths.size();i++){
 //            cout << verified_depths[i]<<"|";
 //        }
@@ -388,7 +385,7 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
             it->start_frame--;
         else
         {
-            Eigen::Vector3d uv_i = it->feature_per_frame[0].point;
+            Eigen::Vector3d uv_i = it->feature_per_frame[0].point;  
             it->feature_per_frame.erase(it->feature_per_frame.begin());
             if (it->feature_per_frame.size() < 2)
             {
